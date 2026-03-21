@@ -1,3 +1,4 @@
+import { supabase } from "../lib/supabase";
  "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -1195,11 +1196,39 @@ export default function AngkringanApp() {
   const [kasirs,setKasirs]=useState(()=>{try{const s=localStorage.getItem("kasirs");return s?JSON.parse(s):[];}catch{return [];}});
   const [target,setTarget]=useState(()=>{try{const s=localStorage.getItem("target");return s?JSON.parse(s):500000;}catch{return 500000;}});
 
-  useEffect(()=>{localStorage.setItem("menus",JSON.stringify(menus));},[menus]);
-  useEffect(()=>{localStorage.setItem("orders",JSON.stringify(orders));},[orders]);
-  useEffect(()=>{localStorage.setItem("expenses",JSON.stringify(expenses));},[expenses]);
-  useEffect(()=>{localStorage.setItem("kasirs",JSON.stringify(kasirs));},[kasirs]);
-  useEffect(()=>{localStorage.setItem("target",JSON.stringify(target));},[target]);
+  // Load data from Supabase on mount
+  useEffect(()=>{
+    supabase.from("kasirs").select("*").then(({data})=>{ if(data?.length) setKasirs(data.map(r=>({id:r.id,name:r.name,password:r.password}))); });
+    supabase.from("menus").select("*").then(({data})=>{ if(data?.length) setMenus(data.map(r=>({id:r.id,name:r.name,price:r.price,category:r.category,available:r.available}))); });
+    supabase.from("orders").select("*").then(({data})=>{ if(data) setOrders(data.map(r=>({id:r.id,customerName:r.customer_name,status:r.status,createdAt:r.created_at,paidAt:r.paid_at,items:r.items,total:r.total,kasirId:r.kasir_id}))); });
+    supabase.from("expenses").select("*").then(({data})=>{ if(data) setExpenses(data.map(r=>({id:r.id,description:r.description,amount:r.amount,date:r.date}))); });
+    supabase.from("settings").select("*").eq("key","target").then(({data})=>{ if(data?.[0]) setTarget(data[0].value); });
+  },[]);
+
+  // Sync kasirs
+  useEffect(()=>{
+    kasirs.forEach(k=>supabase.from("kasirs").upsert({id:k.id,name:k.name,password:k.password}).then());
+  },[kasirs]);
+
+  // Sync menus
+  useEffect(()=>{
+    menus.forEach(m=>supabase.from("menus").upsert({id:m.id,name:m.name,price:m.price,category:m.category,available:m.available}).then());
+  },[menus]);
+
+  // Sync orders
+  useEffect(()=>{
+    orders.forEach(o=>supabase.from("orders").upsert({id:o.id,customer_name:o.customerName,status:o.status,created_at:o.createdAt,paid_at:o.paidAt,items:o.items,total:o.total,kasir_id:o.kasirId}).then());
+  },[orders]);
+
+  // Sync expenses
+  useEffect(()=>{
+    expenses.forEach(e=>supabase.from("expenses").upsert({id:e.id,description:e.description,amount:e.amount,date:e.date}).then());
+  },[expenses]);
+
+  // Sync target
+  useEffect(()=>{
+    supabase.from("settings").upsert({key:"target",value:target}).then();
+  },[target]);
 
   if(!user)return(<><FontStyle/><div style={{height:"100vh",background:"var(--bg)"}}><Login onLogin={u=>{setUser(u);setScreen("home");}} kasirs={kasirs}/></div></>);
 
