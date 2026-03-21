@@ -8,13 +8,13 @@ const FontStyle = () => (
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Sora:wght@400;600;700;800&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
     :root{
-      --bg:#FDF8F2;--bg2:#F7F0E6;--card:#FFFFFF;--card2:#FDF3E3;--border:#EDE0CC;
+      --bg:#F8F9FC;--bg2:#EEF2FF;--card:#FFFFFF;--card2:#F1F5F9;--border:#E2E8F0;
       --amber:#D4820A;--amber-dim:rgba(212,130,10,0.10);
-      --green:#2E8B57;--green-dim:rgba(46,139,87,0.10);
-      --red:#C0392B;--red-dim:rgba(192,57,43,0.10);
-      --blue:#2563EB;--blue-dim:rgba(37,99,235,0.10);
+      --green:#10B981;--green-dim:rgba(16,185,129,0.10);
+      --red:#EF4444;--red-dim:rgba(239,68,68,0.10);
+      --blue:#3B82F6;--blue-dim:rgba(59,130,246,0.10);
       --purple:#7C3AED;--purple-dim:rgba(124,58,237,0.10);
-      --cream:#7A5C38;--muted:#A08060;--text:#3D2B1A;
+      --cream:#6366F1;--muted:#94A3B8;--text:#1E293B;
     }
     .sora{font-family:'Sora',sans-serif}
     input{outline:none;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;width:100%;padding:11px 14px}
