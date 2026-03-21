@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import { useState, useMemo } from "react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
