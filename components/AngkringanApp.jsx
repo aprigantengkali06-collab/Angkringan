@@ -1,6 +1,6 @@
  "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const FontStyle = () => (
@@ -1189,11 +1189,17 @@ export default function AngkringanApp() {
   const [user,setUser]=useState(null);
   const [screen,setScreen]=useState("home");
   const [overlay,setOverlay]=useState(null);
-  const [menus,setMenus]=useState(MENUS0);
-  const [orders,setOrders]=useState([]);
-  const [expenses,setExpenses]=useState([]);
-  const [kasirs,setKasirs]=useState([]);
-  const [target,setTarget]=useState(500000);
+  const [menus,setMenus]=useState(()=>{try{const s=localStorage.getItem("menus");return s?JSON.parse(s):MENUS0;}catch{return MENUS0;}});
+  const [orders,setOrders]=useState(()=>{try{const s=localStorage.getItem("orders");return s?JSON.parse(s):[];}catch{return [];}});
+  const [expenses,setExpenses]=useState(()=>{try{const s=localStorage.getItem("expenses");return s?JSON.parse(s):[];}catch{return [];}});
+  const [kasirs,setKasirs]=useState(()=>{try{const s=localStorage.getItem("kasirs");return s?JSON.parse(s):[];}catch{return [];}});
+  const [target,setTarget]=useState(()=>{try{const s=localStorage.getItem("target");return s?JSON.parse(s):500000;}catch{return 500000;}});
+
+  useEffect(()=>{localStorage.setItem("menus",JSON.stringify(menus));},[menus]);
+  useEffect(()=>{localStorage.setItem("orders",JSON.stringify(orders));},[orders]);
+  useEffect(()=>{localStorage.setItem("expenses",JSON.stringify(expenses));},[expenses]);
+  useEffect(()=>{localStorage.setItem("kasirs",JSON.stringify(kasirs));},[kasirs]);
+  useEffect(()=>{localStorage.setItem("target",JSON.stringify(target));},[target]);
 
   if(!user)return(<><FontStyle/><div style={{height:"100vh",background:"var(--bg)"}}><Login onLogin={u=>{setUser(u);setScreen("home");}} kasirs={kasirs}/></div></>);
 
