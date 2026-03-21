@@ -726,7 +726,6 @@ const Login = ({onLogin, kasirs}) => {
             <div className="fi" style={{display:"flex",flexDirection:"column",gap:12}}>
               <TxtInput label="Password" type="password" value={pw} onChange={setPw} placeholder="Masukkan password"/>
               {err&&<p style={{color:"var(--red)",fontSize:13,textAlign:"center"}}>{err}</p>}
-              <p style={{color:"var(--muted)",fontSize:11,textAlign:"center"}}>owner123 · adi123 · dina123</p>
               <Btn onClick={go} disabled={!pw} full>Masuk →</Btn>
             </div>
           )}
@@ -1104,7 +1103,6 @@ const Tim = ({kasirs,setKasirs,onClose}) => {
             <span style={{color:KASIR_COLORS[i%4],fontWeight:800,fontSize:14}}>{k.name[0]}</span>
           </div>
           <div><p style={{color:"var(--text)",fontWeight:700}}>{k.name}</p>
-            <p style={{color:"var(--muted)",fontSize:12,marginTop:1}}>Password: {k.password}</p></div>
         </div>
         {kasirs.length>1&&(<button onClick={()=>setKasirs(p=>p.filter(x=>x.id!==k.id))} style={{width:32,height:32,borderRadius:8,
           background:"var(--red-dim)",border:"1px solid rgba(224,82,82,0.2)",color:"var(--red)",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1191,9 +1189,9 @@ export default function AngkringanApp() {
   const [screen,setScreen]=useState("home");
   const [overlay,setOverlay]=useState(null);
   const [menus,setMenus]=useState(MENUS0);
-  const [orders,setOrders]=useState(ORDERS0);
-  const [expenses,setExpenses]=useState(EXPS0);
-  const [kasirs,setKasirs]=useState([{id:"k1",name:"Adi",password:"adi123"},{id:"k2",name:"Dina",password:"dina123"}]);
+  const [orders,setOrders]=useState([]);
+  const [expenses,setExpenses]=useState([]);
+  const [kasirs,setKasirs]=useState([]);
   const [target,setTarget]=useState(500000);
 
   if(!user)return(<><FontStyle/><div style={{height:"100vh",background:"var(--bg)"}}><Login onLogin={u=>{setUser(u);setScreen("home");}} kasirs={kasirs}/></div></>);
