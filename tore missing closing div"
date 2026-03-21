@@ -1,0 +1,33 @@
+[1mdiff --git a/components/AngkringanApp.jsx b/components/AngkringanApp.jsx[m
+[1mindex f8eefe6..5818ac0 100644[m
+[1m--- a/components/AngkringanApp.jsx[m
+[1m+++ b/components/AngkringanApp.jsx[m
+[36m@@ -726,7 +726,6 @@[m [mconst Login = ({onLogin, kasirs}) => {[m
+             <div className="fi" style={{display:"flex",flexDirection:"column",gap:12}}>[m
+               <TxtInput label="Password" type="password" value={pw} onChange={setPw} placeholder="Masukkan password"/>[m
+               {err&&<p style={{color:"var(--red)",fontSize:13,textAlign:"center"}}>{err}</p>}[m
+[31m-              <p style={{color:"var(--muted)",fontSize:11,textAlign:"center"}}>owner123 · adi123 · dina123</p>[m
+               <Btn onClick={go} disabled={!pw} full>Masuk →</Btn>[m
+             </div>[m
+           )}[m
+[36m@@ -1104,7 +1103,6 @@[m [mconst Tim = ({kasirs,setKasirs,onClose}) => {[m
+             <span style={{color:KASIR_COLORS[i%4],fontWeight:800,fontSize:14}}>{k.name[0]}</span>[m
+           </div>[m
+           <div><p style={{color:"var(--text)",fontWeight:700}}>{k.name}</p>[m
+[31m-            <p style={{color:"var(--muted)",fontSize:12,marginTop:1}}>Password: {k.password}</p></div>[m
+         </div>[m
+         {kasirs.length>1&&(<button onClick={()=>setKasirs(p=>p.filter(x=>x.id!==k.id))} style={{width:32,height:32,borderRadius:8,[m
+           background:"var(--red-dim)",border:"1px solid rgba(224,82,82,0.2)",color:"var(--red)",display:"flex",alignItems:"center",justifyContent:"center"}}>[m
+[36m@@ -1191,9 +1189,9 @@[m [mexport default function AngkringanApp() {[m
+   const [screen,setScreen]=useState("home");[m
+   const [overlay,setOverlay]=useState(null);[m
+   const [menus,setMenus]=useState(MENUS0);[m
+[31m-  const [orders,setOrders]=useState(ORDERS0);[m
+[31m-  const [expenses,setExpenses]=useState(EXPS0);[m
+[31m-  const [kasirs,setKasirs]=useState([{id:"k1",name:"Adi",password:"adi123"},{id:"k2",name:"Dina",password:"dina123"}]);[m
+[32m+[m[32m  const [orders,setOrders]=useState([]);[m
+[32m+[m[32m  const [expenses,setExpenses]=useState([]);[m
+[32m+[m[32m  const [kasirs,setKasirs]=useState([]);[m
+   const [target,setTarget]=useState(500000);[m
+ [m
+   if(!user)return(<><FontStyle/><div style={{height:"100vh",background:"var(--bg)"}}><Login onLogin={u=>{setUser(u);setScreen("home");}} kasirs={kasirs}/></div></>);[m

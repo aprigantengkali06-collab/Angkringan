@@ -1104,6 +1104,7 @@ const Tim = ({kasirs,setKasirs,onClose}) => {
           </div>
           <div><p style={{color:"var(--text)",fontWeight:700}}>{k.name}</p>
         </div>
+        </div>
         {kasirs.length>1&&(<button onClick={()=>setKasirs(p=>p.filter(x=>x.id!==k.id))} style={{width:32,height:32,borderRadius:8,
           background:"var(--red-dim)",border:"1px solid rgba(224,82,82,0.2)",color:"var(--red)",display:"flex",alignItems:"center",justifyContent:"center"}}>
           <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
