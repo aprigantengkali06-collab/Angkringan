@@ -1,5 +1,5 @@
+"use client";
 import { supabase } from "../lib/supabase";
- "use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
