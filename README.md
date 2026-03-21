@@ -1,3 +1,4 @@
+appapapapapap
 # Angkringan. — Sistem Kasir & Manajemen
 
 PWA berbasis Next.js untuk manajemen kasir angkringan.
