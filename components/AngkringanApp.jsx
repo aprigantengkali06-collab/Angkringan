@@ -1187,7 +1187,7 @@ const MenuMgmt = ({menus,setMenus,onClose}) => {
 
 // ── APP ──
 export default function AngkringanApp() {
-  const [user,setUser]=useState(null);
+  const [user,setUser]=useState(()=>{try{const s=localStorage.getItem("user");return s?JSON.parse(s):null;}catch{return null;}});
   const [screen,setScreen]=useState("home");
   const [overlay,setOverlay]=useState(null);
   const [menus,setMenus]=useState(()=>{try{const s=localStorage.getItem("menus");return s?JSON.parse(s):MENUS0;}catch{return MENUS0;}});
@@ -1195,6 +1195,8 @@ export default function AngkringanApp() {
   const [expenses,setExpenses]=useState(()=>{try{const s=localStorage.getItem("expenses");return s?JSON.parse(s):[];}catch{return [];}});
   const [kasirs,setKasirs]=useState(()=>{try{const s=localStorage.getItem("kasirs");return s?JSON.parse(s):[];}catch{return [];}});
   const [target,setTarget]=useState(()=>{try{const s=localStorage.getItem("target");return s?JSON.parse(s):500000;}catch{return 500000;}});
+
+  useEffect(()=>{if(user)localStorage.setItem("user",JSON.stringify(user));else localStorage.removeItem("user");},[user]);
 
   // Load data from Supabase on mount
   useEffect(()=>{
