@@ -640,6 +640,25 @@ const Card = ({children,style={},className=""}) => (
     ...style
   }}>{children}</div>
 );
+const KasirChip = ({kasirId, kasirs}) => {
+  const k = (kasirs||[]).find(k=>k.id===kasirId);
+  if(!k) return null;
+  const idx = (kasirs||[]).indexOf(k);
+  const bg = KASIR_COLORS_DIM[idx % KASIR_COLORS_DIM.length];
+  const color = KASIR_COLORS[idx % KASIR_COLORS.length];
+  return (
+    <span style={{
+      display:"inline-flex",alignItems:"center",gap:4,
+      fontSize:11,fontWeight:600,
+      background:bg,color:color,
+      padding:"2px 10px",borderRadius:99,
+      whiteSpace:"nowrap"
+    }}>
+      {k.name}
+    </span>
+  );
+};
+
 const Btn = ({children,onClick,v="primary",sm,disabled,full,style={}}) => {
   const vs={
     primary:{background:"linear-gradient(135deg,var(--amber) 0%, #F97316 100%)",color:"#fff",boxShadow:"0 14px 28px rgba(245,158,11,0.26)"},
