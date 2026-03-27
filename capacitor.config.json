@@ -1,0 +1,17 @@
+{
+  "appId": "com.angkringan.app",
+  "appName": "Angkringan.",
+  "webDir": "out",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#FDF8F2"
+  },
+  "plugins": {
+    "App": {
+      "launchShowDuration": 0
+    }
+  }
+}
