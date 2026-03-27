@@ -640,6 +640,37 @@ const Card = ({children,style={},className=""}) => (
     ...style
   }}>{children}</div>
 );
+const CatBar = ({cats, active, onChange}) => (
+  <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6,scrollbarWidth:"none"}}>
+    {(cats||[]).map(c=>(
+      <button key={c} onClick={()=>onChange(c)} style={{
+        padding:"6px 16px",borderRadius:99,fontSize:13,fontWeight:600,
+        whiteSpace:"nowrap",
+        background:active===c?"var(--text)":"rgba(255,255,255,0.85)",
+        color:active===c?"#fff":"var(--muted)",
+        border:active===c?"none":"1px solid var(--border)",
+        boxShadow:active===c?"0 2px 8px rgba(15,23,42,0.15)":"none",
+      }}>{c}</button>
+    ))}
+  </div>
+);
+
+const SuccessOverlay = ({message, onDone}) => (
+  <div onClick={onDone} style={{
+    position:"fixed",inset:0,zIndex:9999,
+    display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+    background:"rgba(0,0,0,0.45)",backdropFilter:"blur(6px)",
+    animation:"fadeIn 0.2s ease both",cursor:"pointer"
+  }}>
+    <div style={{animation:"popIn 0.3s ease both",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
+      <div style={{width:64,height:64,borderRadius:99,background:"var(--green)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <svg width="32" height="32" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </div>
+      <span style={{color:"#fff",fontSize:18,fontWeight:700}}>{message||"Berhasil!"}</span>
+    </div>
+  </div>
+);
+
 const KasirChip = ({kasirId, kasirs}) => {
   const k = (kasirs||[]).find(k=>k.id===kasirId);
   if(!k) return null;
