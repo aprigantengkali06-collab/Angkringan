@@ -596,7 +596,7 @@ const STRUK_CSS = `
   html{width:58mm;max-width:58mm}
   body{font-family:'Courier New',Courier,monospace;font-size:10.5px;line-height:1.4;
     width:58mm;max-width:58mm;min-width:58mm;
-    padding:2.5mm 2.5mm 4mm 2.5mm;color:#000;background:#fff;
+    padding:2.5mm 2.5mm 12mm 2.5mm;color:#000;background:#fff;
     word-wrap:break-word;overflow-wrap:break-word}
   .c{text-align:center}
   .r{text-align:right}
@@ -606,7 +606,7 @@ const STRUK_CSS = `
   .dl{border:none;border-top:1px dashed #555;margin:4px 0}
   .meta-row{display:flex;justify-content:space-between;align-items:flex-start;gap:2mm;margin:1.5px 0;font-size:10px}
   .meta-label{color:#444;flex-shrink:0;min-width:14mm}
-  .meta-val{text-align:right;font-weight:600;word-break:break-word;flex:1}
+  .meta-val{text-align:right;font-weight:600;white-space:nowrap;flex-shrink:0}
   .item-blk{margin-bottom:5px}
   .item-name{font-weight:bold;font-size:10.5px;word-break:break-word}
   .item-note{font-size:9px;color:#555;padding-left:2mm;margin-top:1px;word-break:break-word}
@@ -659,7 +659,7 @@ ${(order.items||[]).map(item=>{
 ${footerLines.map(line=>`<div class="foot">${escapeHtml(line)}</div>`).join("")}
 </body></html>`;
   const w=window.open("","_blank","width=340,height=600");
-  if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();},400);}
+  if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close();},400);}
 };
 
 // ── Struk Customer ──
@@ -703,7 +703,7 @@ ${isPaid?`<div class="tot-sub"><span>Dibayar</span><span>${escapeHtml(rupiah(dib
 ${footerLines.map(line=>`<div class="foot">${escapeHtml(line)}</div>`).join("")}
 </body></html>`;
   const w=window.open("","_blank","width=340,height=600");
-  if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();},400);}
+  if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close();},400);}
 };
 
 // ── UI Atoms ──
@@ -2593,13 +2593,15 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
             <div>
               <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Suhu</p>
               <div style={{display:"flex",gap:8}}>
-                {(sheet.suhu==="Keduanya"?[{label:"🧊 Ice",v:"Ice"},{label:"🔥 Hot",v:"Hot"}]:[{label:sheet.suhu==="Hot"?"🔥 Hot":"🧊 Ice",v:sheet.suhu==="Hot"?"Hot":"Ice"}]).map(opt=>(
+                {(sheet.suhu==="Keduanya"?[{label:"🧊 Ice",v:"Ice"},{label:"🔥 Hot",v:"Hot"}]:[{label:sheet.suhu==="Hot"?"🔥 Hot":"🧊 Ice",v:sheet.suhu==="Hot"?"Hot":"Ice"}]).map(opt=>{
+                  const countSuhu=(ord?.items||[]).filter(i=>i.menuId===sheet.id&&i.suhu===opt.v&&!i.paid).reduce((s,i)=>s+(Number(i.qty)||0),0);
+                  return(
                   <button key={opt.v} onClick={()=>setSheetSuhu(opt.v)} style={{flex:1,padding:"10px 12px",borderRadius:10,
                     background:sheetSuhu===opt.v?"var(--amber-dim)":"var(--card)",color:sheetSuhu===opt.v?"var(--amber)":"var(--muted)",
                     border:`1px solid ${sheetSuhu===opt.v?"rgba(245,166,35,0.35)":"var(--border)"}`,fontSize:12,fontWeight:600}}>
-                    {opt.label}
+                    {opt.label}{countSuhu>0?` (${countSuhu})`:""}
                   </button>
-                ))}
+                )})}
               </div>
             </div>
           )}
