@@ -5,10 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:android": "next build",
     "start": "next start"
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.1",
     "@supabase/supabase-js": "^2.99.3",
+    "esbuild": "^0.27.4",
     "next": "15.3.6",
     "next-pwa": "^5.6.0",
     "react": "^19",
