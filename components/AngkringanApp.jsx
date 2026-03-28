@@ -2232,22 +2232,50 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
           <p className="sora" style={{color:"var(--amber)",fontWeight:800,fontSize:16}}>{rupiah(sheet.price)}</p>
         </div>
 
-        {/* Pilih suhu — hanya untuk menu sendiri yang punya opsi suhu */}
-        {!sheet.mitraId&&sheet.suhu&&sheet.suhu!=="Tidak Ada"&&(
+        {/* Counter per suhu */}
+        {!sheet.mitraId&&sheet.suhu&&sheet.suhu!=="Tidak Ada"?(
           <div>
             <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:9}}>Suhu</p>
             <div style={{display:"flex",gap:9}}>
-              {(sheet.suhu==="Keduanya"?["Ice","Hot"]:sheet.suhu==="Ice"?["Ice"]:["Hot"]).map(s=>(
-                <button key={s} onClick={()=>setSheetSuhu(s)} style={{flex:1,padding:"11px",borderRadius:11,fontWeight:700,fontSize:14,
-                  background:sheetSuhu===s?(s==="Ice"?"var(--blue-dim)":"var(--red-dim)"):"var(--card2)",
-                  color:sheetSuhu===s?(s==="Ice"?"var(--blue)":"var(--red)"):"var(--muted)",
-                  border:`1px solid ${sheetSuhu===s?(s==="Ice"?"rgba(59,130,246,0.4)":"rgba(239,68,68,0.4)"):"var(--border)"}`}}>
-                  {s==="Ice"?"🧊 Ice":"🔥 Hot"}
-                </button>
-              ))}
+              {(sheet.suhu==="Keduanya"?["Ice","Hot"]:sheet.suhu==="Ice"?["Ice"]:["Hot"]).map(s=>{
+                const m=sheet;
+                const needSuhu=true;
+                const displayName=`${m.name} (${s})`;
+                const key=cartKey(m.id,s,sheetNote.trim(),m.price,displayName);
+                const countSuhu=cart.filter(c=>c.menuId===m.id&&c.suhu===s).reduce((sum,c)=>sum+(Number(c.qty)||0),0);
+                const isIce=s==="Ice";
+                const clr=isIce?"var(--blue)":"var(--red)";
+                const bgDim=isIce?"var(--blue-dim)":"var(--red-dim)";
+                const brd=isIce?"rgba(59,130,246,0.4)":"rgba(239,68,68,0.4)";
+                const addOne=()=>{
+                  setCart(p=>{
+                    const note=sheetNote.trim();
+                    const k=cartKey(m.id,s,note,m.price,displayName);
+                    const e=p.find(c=>c.cartKey===k);
+                    if(e)return p.map(c=>c.cartKey===k?{...c,qty:c.qty+1}:c);
+                    return [...p,{cartKey:k,menuId:m.id,name:displayName,price:m.price,qty:1,suhu:s,note,mitraId:m.mitraId||null,hargaMitra:m.hargaMitra||null}];
+                  });
+                };
+                const removeOne=()=>{
+                  setCart(p=>{
+                    const items=[...p].filter(c=>c.menuId===m.id&&c.suhu===s);
+                    if(!items.length)return p;
+                    const last=items[items.length-1];
+                    return p.map(c=>c.cartKey===last.cartKey?{...c,qty:c.qty-1}:c).filter(c=>c.qty>0);
+                  });
+                };
+                return(
+                  <div key={s} style={{flex:1,display:"flex",alignItems:"center",gap:6,background:bgDim,borderRadius:11,padding:"10px 10px",border:`1px solid ${brd}`}}>
+                    <button onClick={removeOne} style={{width:28,height:28,borderRadius:7,background:"rgba(0,0,0,0.08)",border:"none",fontSize:18,fontWeight:800,color:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>−</button>
+                    <span style={{flex:1,textAlign:"center",fontWeight:700,fontSize:13,color:clr}}>{isIce?"🧊 Ice":"🔥 Hot"}</span>
+                    <button onClick={addOne} style={{width:28,height:28,borderRadius:7,background:"rgba(0,0,0,0.08)",border:"none",fontSize:18,fontWeight:800,color:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>+</button>
+                    <span style={{fontWeight:800,fontSize:16,color:clr,minWidth:18,textAlign:"center"}}>{countSuhu}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
+        ):null}
 
         {/* Catatan */}
         <div>
@@ -2260,7 +2288,10 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
           </div>
         </div>
 
-        <Btn onClick={addFromSheet} full>Tambah ke Pesanan</Btn>
+        {(!sheet.mitraId&&sheet.suhu&&sheet.suhu!=="Tidak Ada")
+          ? <Btn onClick={()=>setSheet(null)} full>Selesai</Btn>
+          : <Btn onClick={addFromSheet} full>Tambah ke Pesanan</Btn>
+        }
       </div>
     </div>)}
   </div>);
@@ -2589,22 +2620,58 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
             <h3 className="sora" style={{fontWeight:700,color:"var(--text)",fontSize:18,marginTop:2}}>{sheet.name}</h3>
             <p className="sora" style={{color:"var(--amber)",fontWeight:800,fontSize:16,marginTop:4}}>{rupiah(sheet.price)}</p>
           </div>
-          {!sheet.mitraId&&sheet.suhu&&sheet.suhu!=="Tidak Ada"&&(
+          {!sheet.mitraId&&sheet.suhu&&sheet.suhu!=="Tidak Ada"?(
             <div>
               <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Suhu</p>
               <div style={{display:"flex",gap:8}}>
-                {(sheet.suhu==="Keduanya"?[{label:"🧊 Ice",v:"Ice"},{label:"🔥 Hot",v:"Hot"}]:[{label:sheet.suhu==="Hot"?"🔥 Hot":"🧊 Ice",v:sheet.suhu==="Hot"?"Hot":"Ice"}]).map(opt=>{
-                  const countSuhu=(ord?.items||[]).filter(i=>i.menuId===sheet.id&&i.suhu===opt.v&&!i.paid).reduce((s,i)=>s+(Number(i.qty)||0),0);
+                {(sheet.suhu==="Keduanya"?["Ice","Hot"]:[sheet.suhu==="Hot"?"Hot":"Ice"]).map(s=>{
+                  const m=sheet;
+                  const displayName=`${m.name} (${s})`;
+                  const lineKey=buildItemKey({menuId:m.id,name:displayName,suhu:s,note:sheetNote.trim(),price:m.price});
+                  const countSuhu=(ord?.items||[]).filter(i=>i.menuId===m.id&&i.suhu===s).reduce((acc,i)=>acc+(Number(i.qty)||0),0);
+                  const isIce=s==="Ice";
+                  const clr=isIce?"var(--blue)":"var(--red)";
+                  const bgDim=isIce?"var(--blue-dim)":"var(--red-dim)";
+                  const brd=isIce?"rgba(59,130,246,0.4)":"rgba(239,68,68,0.4)";
+                  const addOne=()=>{
+                    if(!sel||!ord)return;
+                    const note=sheetNote.trim();
+                    const key=buildItemKey({menuId:m.id,name:displayName,suhu:s,note,price:m.price});
+                    const addedItem={cartKey:key,menuId:m.id,name:displayName,price:m.price,qty:1,suhu:s,note,mitraId:m.mitraId||null,hargaMitra:m.hargaMitra||null};
+                    setOrders(prev=>prev.map(order=>{
+                      if(order.id!==sel)return order;
+                      const items=[...(order.items||[])];
+                      const ei=items.findIndex(i=>getLineKey(i)===key&&!i.paid);
+                      if(ei>=0)items[ei]={...items[ei],qty:(Number(items[ei].qty)||0)+1};
+                      else items.push(addedItem);
+                      return normalizeOrder({...order,sessionDate:orderSessionDate(order)||businessDate,sessionId:order.sessionId||currentSessionId||null,items,total:getItemsTotal(items.filter(i=>!i.paid)),lastDeviceId:user.id});
+                    }));
+                  };
+                  const removeOne=()=>{
+                    if(!sel||!ord)return;
+                    setOrders(prev=>prev.map(order=>{
+                      if(order.id!==sel)return order;
+                      const items=[...(order.items||[])];
+                      const candidates=items.filter(i=>i.menuId===m.id&&i.suhu===s&&!i.paid);
+                      if(!candidates.length)return order;
+                      const last=candidates[candidates.length-1];
+                      const key=getLineKey(last);
+                      const updated=items.map(i=>getLineKey(i)===key?{...i,qty:(Number(i.qty)||0)-1}:i).filter(i=>Number(i.qty)>0);
+                      return normalizeOrder({...order,sessionDate:orderSessionDate(order)||businessDate,sessionId:order.sessionId||currentSessionId||null,items:updated,total:getItemsTotal(updated.filter(i=>!i.paid)),lastDeviceId:user.id});
+                    }));
+                  };
                   return(
-                  <button key={opt.v} onClick={()=>setSheetSuhu(opt.v)} style={{flex:1,padding:"10px 12px",borderRadius:10,
-                    background:sheetSuhu===opt.v?"var(--amber-dim)":"var(--card)",color:sheetSuhu===opt.v?"var(--amber)":"var(--muted)",
-                    border:`1px solid ${sheetSuhu===opt.v?"rgba(245,166,35,0.35)":"var(--border)"}`,fontSize:12,fontWeight:600}}>
-                    {opt.label}{countSuhu>0?` (${countSuhu})`:""}
-                  </button>
-                )})}
+                    <div key={s} style={{flex:1,display:"flex",alignItems:"center",gap:6,background:bgDim,borderRadius:11,padding:"10px 10px",border:`1px solid ${brd}`}}>
+                      <button onClick={removeOne} style={{width:28,height:28,borderRadius:7,background:"rgba(0,0,0,0.08)",border:"none",fontSize:18,fontWeight:800,color:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>−</button>
+                      <span style={{flex:1,textAlign:"center",fontWeight:700,fontSize:13,color:clr}}>{isIce?"🧊 Ice":"🔥 Hot"}</span>
+                      <button onClick={addOne} style={{width:28,height:28,borderRadius:7,background:"rgba(0,0,0,0.08)",border:"none",fontSize:18,fontWeight:800,color:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>+</button>
+                      <span style={{fontWeight:800,fontSize:16,color:clr,minWidth:18,textAlign:"center"}}>{countSuhu}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          )}
+          ):null}
           <div>
             <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Catatan (opsional)</p>
             <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:11,overflow:"hidden"}}>
@@ -2614,7 +2681,10 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
           </div>
         </div>
         <div style={{padding:"12px 20px calc(env(safe-area-inset-bottom) + 88px)",borderTop:"1px solid var(--border)"}}>
-          <Btn onClick={addItemFromSheet} full>Tambah ke Tagihan</Btn>
+          {(!sheet.mitraId&&sheet.suhu&&sheet.suhu!=="Tidak Ada")
+            ? <Btn onClick={()=>setSheet(null)} full>Selesai</Btn>
+            : <Btn onClick={addItemFromSheet} full>Tambah ke Tagihan</Btn>
+          }
         </div>
       </div>
     </div>)}
