@@ -415,9 +415,11 @@ const printDayPDF = (date, orders, expenses, kasirs, menus=[]) => {
 .hd h1{font-size:20px;font-weight:800;color:#0C0906}.hd .br{color:#F5A623}.hd .dt{font-size:12px;color:#666;margin-top:5px}
 .sec{margin-bottom:18px}.st{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px}
 .row{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:7px;margin-bottom:5px}
+.row-sub{display:flex;justify-content:space-between;align-items:center;padding:6px 12px 6px 24px;border-radius:7px;margin-bottom:3px;opacity:0.85}
 .rin{background:#f0fdf4;border-left:3px solid #4CAF7D}.rout{background:#fff5f5;border-left:3px solid #E05252}.rkas{background:#fffbeb;border-left:3px solid #F5A623}
-.lbl{font-size:13px;color:#444}.val{font-size:15px;font-weight:800}
-.vin{color:#4CAF7D}.vout{color:#E05252}.vkas{color:#F5A623}
+.rtotal{background:#ffeaea;border-left:3px solid #c0392b;margin-top:2px}
+.lbl{font-size:13px;color:#444}.lbl-sub{font-size:12px;color:#777}.val{font-size:15px;font-weight:800}
+.vin{color:#4CAF7D}.vout{color:#E05252}.vkas{color:#F5A623}.vtotal{color:#c0392b}
 table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f9f5f0;text-align:left;padding:7px 10px;font-weight:700;color:#555;border-bottom:1px solid #e5e5e5}
 td{padding:7px 10px;border-bottom:1px solid #f0f0f0;color:#333}.rk{background:#F5A623;color:#fff;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:700}
 .kb{background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600}
@@ -427,9 +429,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0f0;color:#333}.rk{background:#F
 <div class="hd"><h1>Angkringan<span class="br">.</span> Rekap Harian</h1><p class="dt">${fmtFull(date)}</p></div>
 <div class="sec"><div class="st">Ringkasan Keuangan</div>
 <div class="row rin"><span class="lbl">💰 Pemasukan</span><span class="val vin">${rupiah(pemasukan)}</span></div>
-<div class="row rout"><span class="lbl">🧾 Pengeluaran</span><span class="val vout">− ${rupiah(pengeluaran)}</span></div>
-<div class="row rout"><span class="lbl">🤝 Modal Mitra</span><span class="val vout">− ${rupiah(modalMitra)}</span></div>
-<div class="row rout"><span class="lbl">📦 Total Keluar</span><span class="val vout">− ${rupiah(totalKeluar)}</span></div>
+<div class="row-sub rout"><span class="lbl-sub">🧾 Pengeluaran</span><span class="val vout" style="font-size:13px">− ${rupiah(pengeluaran)}</span></div>
+<div class="row-sub rout"><span class="lbl-sub">🤝 Modal Mitra</span><span class="val vout" style="font-size:13px">− ${rupiah(modalMitra)}</span></div>
+<div class="row rtotal"><span class="lbl" style="font-weight:700">📦 Total Keluar <span style="font-size:10px;font-weight:400;color:#999">(Pengeluaran + Modal Mitra)</span></span><span class="val vtotal">− ${rupiah(totalKeluar)}</span></div>
 <div class="row rkas"><span class="lbl">🏦 Kas Bersih</span><span class="val vkas">${rupiah(kas)}</span></div></div>
 ${paid.length?`<div class="sec"><div class="st">Pesanan (${paid.length})</div><table><thead><tr><th>#</th><th>Pelanggan</th><th>Item</th><th>Kasir</th><th>Total</th></tr></thead><tbody>
 ${paid.map((o,i)=>{const k=kasirs.find(k=>k.id===o.kasirId);return`<tr><td>${i+1}</td><td>${o.customerName}</td><td style="font-size:10px;color:#666">${o.items.map(i=>`${i.name}×${i.qty}`).join(", ")}</td><td><span class="kb">${k?.name||"-"}</span></td><td style="font-weight:700;color:#F5A623">${rupiah(o.total)}</td></tr>`;}).join("")}</tbody></table></div>`:""}
@@ -437,8 +439,19 @@ ${exps.length?`<hr class="div"><div class="sec"><div class="st">Pengeluaran</div
 ${exps.map(e=>`<tr><td>${e.description}</td><td style="color:#E05252;font-weight:700">− ${rupiah(e.amount)}</td></tr>`).join("")}</tbody></table></div>`:""}
 <div class="ft">Dicetak dari Angkringan. — ${new Date().toLocaleString("id-ID")}</div>
 </body></html>`;
-  const w = window.open("","_blank","width=680,height=860");
-  if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),350);}
+  const fileName = `Rekap-${date}.html`;
+  if(window.AngkringanFileBridge?.savePdfFile){
+    window.AngkringanFileBridge.savePdfFile(`Rekap-${date}`, html);
+  } else {
+    const blob = new Blob([html], {type:"text/html;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  }
 };
 
 // ── PDF Bulanan ──
@@ -460,8 +473,10 @@ const printMonthPDF = (monthKey, monthLabel, orders, expenses, kasirs, menus=[])
 .hd h1{font-size:20px;font-weight:800;color:#0C0906}.hd .br{color:#F5A623}.hd .dt{font-size:12px;color:#666;margin-top:5px}
 .sec{margin-bottom:20px}.st{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:8px}
 .row{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:7px;margin-bottom:5px}
-.rin{background:#f0fdf4;border-left:3px solid #4CAF7D}.rout{background:#fff5f5;border-left:3px solid #E05252}.rkas{background:#fffbeb;border-left:3px solid #F5A623}
-.lbl{font-size:13px;color:#444}.val{font-size:15px;font-weight:800}.vin{color:#4CAF7D}.vout{color:#E05252}.vkas{color:#F5A623}
+.row-sub{display:flex;justify-content:space-between;align-items:center;padding:6px 12px 6px 28px;border-radius:5px;margin-bottom:3px}
+.rin{background:#f0fdf4;border-left:3px solid #4CAF7D}.rkas{background:#fffbeb;border-left:3px solid #F5A623}
+.rout-sub{background:#fff8f8;border-left:2px dashed #E05252}.rtotal{background:#ffeaea;border-left:3px solid #c0392b;margin-top:4px}
+.lbl{font-size:13px;color:#444}.lbl-sub{font-size:12px;color:#888}.val{font-size:15px;font-weight:800}.val-sub{font-size:12px;font-weight:700}.vin{color:#4CAF7D}.vout{color:#E05252}.vkas{color:#F5A623}.vtotal{color:#c0392b}
 table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f9f5f0;text-align:left;padding:7px 10px;font-weight:700;color:#555;border-bottom:1px solid #e5e5e5}
 td{padding:7px 10px;border-bottom:1px solid #f0f0f0;color:#333}
 .kb{background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600}
@@ -471,9 +486,9 @@ td{padding:7px 10px;border-bottom:1px solid #f0f0f0;color:#333}
 <div class="hd"><h1>Angkringan<span class="br">.</span> Laporan Bulanan</h1><p class="dt">${monthLabel}</p></div>
 <div class="sec"><div class="st">Ringkasan Keuangan</div>
 <div class="row rin"><span class="lbl">💰 Total Pemasukan</span><span class="val vin">${rupiah(pemasukan)}</span></div>
-<div class="row rout"><span class="lbl">🧾 Pengeluaran</span><span class="val vout">− ${rupiah(pengeluaran)}</span></div>
-<div class="row rout"><span class="lbl">🤝 Modal Mitra</span><span class="val vout">− ${rupiah(modalMitra)}</span></div>
-<div class="row rout"><span class="lbl">📦 Total Keluar</span><span class="val vout">− ${rupiah(totalKeluar)}</span></div>
+<div class="row-sub rout-sub"><span class="lbl-sub">🧾 Pengeluaran</span><span class="val-sub vout">− ${rupiah(pengeluaran)}</span></div>
+<div class="row-sub rout-sub"><span class="lbl-sub">🤝 Modal Mitra</span><span class="val-sub vout">− ${rupiah(modalMitra)}</span></div>
+<div class="row rtotal"><span class="lbl" style="font-weight:700">📦 Total Keluar</span><span class="val vtotal">− ${rupiah(totalKeluar)}</span></div>
 <div class="row rkas"><span class="lbl">🏦 Kas Bersih</span><span class="val vkas">${rupiah(kas)}</span></div></div>
 <hr class="div">
 <div class="sec"><div class="st">Rekap Per Hari (${days.length} hari)</div>
@@ -498,8 +513,17 @@ ${exps.sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
 </tbody></table></div>`:""}
 <div class="ft">Dicetak dari Angkringan. — ${new Date().toLocaleString("id-ID")}</div>
 </body></html>`;
-  const w=window.open("","_blank","width=720,height=900");
-  if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),350);}
+  const fileName = `Laporan-${monthKey}.html`;
+  if(window.AngkringanFileBridge?.savePdfFile){
+    window.AngkringanFileBridge.savePdfFile(`Laporan-${monthKey}`, html);
+  } else {
+    const blob = new Blob([html],{type:"text/html;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download=fileName;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  }
 };
 
 const DEFAULT_RECEIPT_SETTINGS = {
