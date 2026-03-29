@@ -2014,6 +2014,9 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
   const [cat,setCat]=useState("Semua");
   const [search,setSearch]=useState("");
   const [showSearch,setShowSearch]=useState(false);
+  const searchRef=useRef(null);
+  const [layout,setLayout]=useState(()=>{try{return localStorage.getItem("posLayout")||"grid";}catch{return "grid";}});
+  const setLayoutSave=v=>{setLayout(v);try{localStorage.setItem("posLayout",v);}catch{}};
   // bottom sheet untuk pilih suhu + catatan
   const [sheet,setSheet]=useState(null); // {menu} atau null
   const [sheetSuhu,setSheetSuhu]=useState("Ice");
@@ -2046,6 +2049,18 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
     setSheet(null);setSheetNote("");
   };
 
+  // Quick add: langsung tambah tanpa bottom sheet (untuk grid, non-Keduanya)
+  const quickAdd=(m)=>{
+    const needSuhu=!m.mitraId&&m.suhu&&m.suhu!=="Tidak Ada";
+    const suhu=needSuhu?(m.suhu==="Ice"?"Ice":"Hot"):null;
+    const displayName=needSuhu?`${m.name} (${suhu})`:m.name;
+    const key=cartKey(m.id,suhu,"",m.price,displayName);
+    setCart(p=>{
+      const e=p.find(c=>c.cartKey===key);
+      if(e)return p.map(c=>c.cartKey===key?{...c,qty:c.qty+1}:c);
+      return [...p,{cartKey:key,menuId:m.id,name:displayName,price:m.price,qty:1,suhu,note:"",mitraId:m.mitraId||null,hargaMitra:m.hargaMitra||null}];
+    });
+  };
   const chg=(key,d)=>setCart(p=>p.map(c=>c.cartKey===key?{...c,qty:c.qty+d}:c).filter(c=>c.qty>0));
   const reset=()=>{setStep("name");setName("");setCart([]);setCat("Semua");setSearch("");setShowSearch(false);};
   const quickMenus=useMemo(()=>{
@@ -2174,7 +2189,7 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
           {!showSearch&&<p style={{color:"var(--muted)",fontSize:10,marginTop:1}}>Pilih menu untuk ditambahkan ke pesanan</p>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-          <button onClick={()=>{if(showSearch){setShowSearch(false);setSearch("");}else setShowSearch(true);}} style={{width:36,height:36,borderRadius:11,background:showSearch?"var(--amber-dim)":"rgba(255,255,255,0.82)",border:`1px solid ${showSearch?"rgba(245,158,11,0.28)":"var(--border)"}`,display:"flex",alignItems:"center",justifyContent:"center",color:showSearch?"var(--amber)":"var(--muted)",boxShadow:"0 8px 18px rgba(15,23,42,0.05)"}}>
+          <button onClick={()=>{if(showSearch){setShowSearch(false);setSearch("");}else{setShowSearch(true);setTimeout(()=>searchRef.current?.focus(),50);}}} style={{width:36,height:36,borderRadius:11,background:showSearch?"var(--amber-dim)":"rgba(255,255,255,0.82)",border:`1px solid ${showSearch?"rgba(245,158,11,0.28)":"var(--border)"}`,display:"flex",alignItems:"center",justifyContent:"center",color:showSearch?"var(--amber)":"var(--muted)",boxShadow:"0 8px 18px rgba(15,23,42,0.05)"}}>
             <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           </button>
           <Btn v="ghost" sm onClick={reset}>Batal</Btn>
@@ -2183,7 +2198,7 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
       {showSearch&&(
         <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--card2)",border:"1px solid var(--border)",borderRadius:11,padding:"7px 11px",marginBottom:7}}>
           <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari menu..." style={{flex:1,background:"none",border:"none",outline:"none",fontSize:14,color:"var(--text)",fontFamily:"'DM Sans',sans-serif"}}/>
+          <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari menu..." style={{flex:1,background:"none",border:"none",outline:"none",fontSize:14,color:"var(--text)",fontFamily:"'DM Sans',sans-serif"}}/>
           {(search||showSearch)&&<button onClick={()=>{setSearch("");setShowSearch(false);}} style={{color:"var(--muted)",fontSize:16,lineHeight:1}}>×</button>}
         </div>
       )}
@@ -2200,9 +2215,24 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
           </div>);})}
         </div>
       </div>)}
-      {!showSearch&&<CatBar cats={getCategoryOptions(menus)} active={cat} onChange={setCat}/>}
+      {!showSearch&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{flex:1,minWidth:0}}><CatBar cats={getCategoryOptions(menus)} active={cat} onChange={setCat}/></div>
+      <div style={{display:"flex",background:"var(--card2)",border:"1px solid var(--border)",borderRadius:9,padding:2,gap:2,flexShrink:0}}>
+        <button onClick={()=>setLayoutSave("grid")} style={{width:30,height:28,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",border:"none",
+          background:layout==="grid"?"#fff":"transparent",color:layout==="grid"?"var(--amber)":"var(--muted)",
+          boxShadow:layout==="grid"?"0 1px 4px rgba(0,0,0,0.10)":"none",transition:"all .15s"}}>
+          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </button>
+        <button onClick={()=>setLayoutSave("list")} style={{width:30,height:28,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",border:"none",
+          background:layout==="list"?"#fff":"transparent",color:layout==="list"?"var(--amber)":"var(--muted)",
+          boxShadow:layout==="list"?"0 1px 4px rgba(0,0,0,0.10)":"none",transition:"all .15s"}}>
+          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+      </div>
+      </div>}
     </div>
-    <div className="menu-grid" style={{flex:1,overflowY:"auto",padding:"8px 14px",alignContent:"start",paddingBottom:cart.length>0?"72px":"10px"}}>
+    <div style={{flex:1,overflowY:"auto",padding:"8px 14px",alignContent:"start",paddingBottom:cart.length>0?"72px":"10px",
+      ...(layout==="grid"?{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,gridAutoRows:"1fr"}:{display:"flex",flexDirection:"column",gap:7})}}>
       {filtered.length===0&&(
         <div style={{gridColumn:"1/-1",textAlign:"center",padding:32}}>
           <p style={{color:"var(--muted)",fontSize:13}}>{search?`Menu "${search}" tidak ditemukan`:"Belum ada menu yang tampil di kategori ini"}</p>
@@ -2211,8 +2241,37 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
       {filtered.map(m=>{
         const q=totalQtyOf(m.id);
         const hasSuhu=!m.mitraId&&m.suhu&&m.suhu!=="Tidak Ada";
+        if(layout==="list") return(
+          <div key={m.id} onClick={()=>openSheet(m)} style={{background:q>0?"rgba(245,166,35,0.06)":"var(--card)",
+            border:`1.5px solid ${q>0?"rgba(245,166,35,0.35)":"var(--border)"}`,borderRadius:12,
+            padding:"10px 13px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",
+            boxShadow:"0 2px 8px rgba(15,23,42,0.04)"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <p style={{color:"var(--text)",fontWeight:700,fontSize:13}}>{m.name}</p>
+                {hasSuhu&&<>
+                  {(m.suhu==="Keduanya"||m.suhu==="Ice")&&<span style={{fontSize:9,background:"var(--blue-dim)",color:"var(--blue)",padding:"1px 5px",borderRadius:99,fontWeight:700}}>🧊</span>}
+                  {(m.suhu==="Keduanya"||m.suhu==="Hot")&&<span style={{fontSize:9,background:"var(--red-dim)",color:"var(--red)",padding:"1px 5px",borderRadius:99,fontWeight:700}}>🔥</span>}
+                </>}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+                <span style={{color:"var(--amber)",fontWeight:700,fontSize:12}}>{rupiah(m.price)}</span>
+                {m.mitraId&&m.hargaMitra&&m.price>m.hargaMitra&&(
+                  <span style={{background:"var(--green-dim)",color:"var(--green)",fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:99}}>+{rupiah(m.price-m.hargaMitra)}</span>
+                )}
+                <span style={{color:"var(--muted)",fontSize:10}}>{m.category}</span>
+              </div>
+            </div>
+            <button className={q>0?"menu-card-action active":"menu-card-action"} style={{width:"auto",padding:"7px 14px",margin:0,flexShrink:0}} onClick={e=>{e.stopPropagation();openSheet(m);}}>
+              {q>0?`${q}×`:"+ Tambah"}
+            </button>
+          </div>
+        );
+        // Keduanya = harus pilih suhu → buka sheet. Lainnya = quick add langsung
+        const isKeduanya=m.suhu==="Keduanya";
+        const handleGridTap=()=>isKeduanya?openSheet(m):quickAdd(m);
         return(
-          <div key={m.id} className={q>0?"menu-card active":"menu-card"}>
+          <div key={m.id} className={q>0?"menu-card active":"menu-card"} onClick={handleGridTap} style={{cursor:"pointer"}}>
             <div className="menu-card-head">
               <p style={{color:"var(--muted)",fontSize:9,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.category}</p>
               <p className="menu-card-title">{m.name}</p>
@@ -2229,9 +2288,13 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
                 <span style={{background:"var(--green-dim)",color:"var(--green)",fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:99}}>+{rupiah(m.price-m.hargaMitra)}</span>
               )}
             </div>
-            <button className={q>0?"menu-card-action active":"menu-card-action"} onClick={()=>openSheet(m)}>
-              {q>0?`${q}× Tambah`:"+ Tambah"}
-            </button>
+            <div className={q>0?"menu-card-action active":"menu-card-action"}
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,borderRadius:10,marginTop:4,padding:"8px 10px",
+                fontSize:12,fontWeight:700,border:`1.5px solid ${q>0?"rgba(245,166,35,0.5)":"rgba(245,166,35,0.2)"}`,
+                background:q>0?"var(--amber)":"var(--amber-dim)",color:q>0?"#fff":"var(--amber)"}}>
+              {q>0&&<span style={{background:q>0?"rgba(255,255,255,0.25)":"rgba(245,158,11,0.15)",borderRadius:6,minWidth:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,padding:"0 4px"}}>{q}×</span>}
+              <span>{isKeduanya?"Pilih Suhu":q>0?"Tambah":"+ Tambah"}</span>
+            </div>
           </div>
         );
       })}
@@ -2927,7 +2990,7 @@ const Tim = ({kasirs,setKasirs,mitras,setMitras,ownerPassword,setOwnerPassword,o
               {m.pemilik&&<p style={{color:"var(--muted)",fontSize:12,marginTop:1}}>{m.pemilik}</p>}
             </div>
           </div>
-          <button onClick={()=>setMitras(p=>p.filter(x=>x.id!==m.id))} style={{width:32,height:32,borderRadius:8,
+          <button onClick={()=>{supabase.from("mitras").delete().eq("id",m.id).then();setMitras(p=>p.filter(x=>x.id!==m.id));}} style={{width:32,height:32,borderRadius:8,
             background:"var(--red-dim)",border:"1px solid rgba(224,82,82,0.2)",color:"var(--red)",display:"flex",alignItems:"center",justifyContent:"center"}}>
             <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
           </button>
@@ -2986,9 +3049,10 @@ const Tim = ({kasirs,setKasirs,mitras,setMitras,ownerPassword,setOwnerPassword,o
 // ── Menu Mgmt ──
 const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
   const [show,setShow]=useState(false);const[eid,setEid]=useState(null);
-  // State untuk tambah kategori baru
+  // State untuk tambah/edit/hapus kategori
   const [showAddCat,setShowAddCat]=useState(false);
   const [newCatInput,setNewCatInput]=useState("");
+  const [editCat,setEditCat]=useState(null); // {old, val}
   // Ambil semua kategori dari menu yang ada + kategori tambahan dari localStorage
   const [extraCats,setExtraCats]=useState(()=>{try{const s=localStorage.getItem("extraMenuCats");return s?JSON.parse(s):[];}catch{return [];}});
   const allCats=useMemo(()=>{
@@ -3008,6 +3072,36 @@ const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
     setNewCatInput("");
     setShowAddCat(false);
   };
+  const renameCategory=(oldName,newName)=>{
+    const v=newName.trim();
+    if(!v||v===oldName){setEditCat(null);return;}
+    // update semua menu yang pakai kategori lama
+    const updatedMenus=menus.map(m=>m.category===oldName?{...m,category:v}:m);
+    updatedMenus.filter(m=>m.category===v&&menus.find(om=>om.id===m.id)?.category===oldName)
+      .forEach(m=>supabase.from("menus").update({category:v}).eq("id",m.id).then());
+    setMenus(updatedMenus);
+    // update extraCats jika ada
+    const nextExtra=extraCats.map(c=>c===oldName?v:c);
+    setExtraCats(nextExtra);
+    localStorage.setItem("extraMenuCats",JSON.stringify(nextExtra));
+    if(form.category===oldName)setForm(p=>({...p,category:v}));
+    if(cat===oldName)setCat(v);
+    setEditCat(null);
+  };
+  const deleteCategory=(name)=>{
+    const hasMenus=menus.some(m=>m.category===name);
+    if(hasMenus){
+      window.__angkringanAlert?.(`Kategori "${name}" masih dipakai oleh ${menus.filter(m=>m.category===name).length} menu. Pindahkan atau hapus menu tersebut dulu.`,"warning");
+      return;
+    }
+    const nextExtra=extraCats.filter(c=>c!==name);
+    setExtraCats(nextExtra);
+    localStorage.setItem("extraMenuCats",JSON.stringify(nextExtra));
+    if(form.category===name)setForm(p=>({...p,category:allCats.find(c=>c!==name)||""}));
+    if(cat===name)setCat("Semua");
+  };
+  const [layoutMenu,setLayoutMenu]=useState(()=>{try{return localStorage.getItem("menuMgmtLayout")||"list";}catch{return "list";}});
+  const setLayoutSaveMenu=v=>{setLayoutMenu(v);try{localStorage.setItem("menuMgmtLayout",v);}catch{}};
   const [form,setForm]=useState({name:"",price:"",category:getCategoryOptions(menus,false)[0]||"Kopi",available:true,mitraId:null,hargaMitra:"",suhu:"Tidak Ada"});
   const [cat,setCat]=useState("Semua");
   const [saving,setSaving]=useState(false);
@@ -3038,27 +3132,72 @@ const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
             <path d="M19 12H5 M12 19l-7-7 7-7"/>
           </svg>
         </button></div>}/>
-    <div style={{padding:"9px 18px",borderBottom:"1px solid var(--border)",flexShrink:0}}><CatBar cats={getCategoryOptions(menus)} active={cat} onChange={setCat}/></div>
-    <div style={{flex:1,overflowY:"auto",padding:"11px 18px",display:"flex",flexDirection:"column",gap:8}}>
+    <div style={{padding:"9px 18px",borderBottom:"1px solid var(--border)",flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
+      <div style={{flex:1,minWidth:0}}><CatBar cats={getCategoryOptions(menus)} active={cat} onChange={setCat}/></div>
+        <div style={{display:"flex",background:"var(--card2)",border:"1px solid var(--border)",borderRadius:9,padding:2,gap:2,flexShrink:0}}>
+          <button onClick={()=>setLayoutSaveMenu("grid")} style={{width:30,height:28,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",border:"none",
+            background:layoutMenu==="grid"?"#fff":"transparent",color:layoutMenu==="grid"?"var(--amber)":"var(--muted)",
+            boxShadow:layoutMenu==="grid"?"0 1px 4px rgba(0,0,0,0.10)":"none",transition:"all .15s"}}>
+            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </button>
+          <button onClick={()=>setLayoutSaveMenu("list")} style={{width:30,height:28,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",border:"none",
+            background:layoutMenu==="list"?"#fff":"transparent",color:layoutMenu==="list"?"var(--amber)":"var(--muted)",
+            boxShadow:layoutMenu==="list"?"0 1px 4px rgba(0,0,0,0.10)":"none",transition:"all .15s"}}>
+            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+        </div>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"11px 18px",
+      ...(layoutMenu==="grid"?{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,gridAutoRows:"1fr",alignContent:"start"}:{display:"flex",flexDirection:"column",gap:8})}}>
       {filtered.map((m,mi)=>{
         const mitra=m.mitraId?getMitra(m.mitraId):null;
         const mitraIdx=mitra?mitras.findIndex(x=>x.id===mitra.id):0;
+        const actionBtns=(
+          <div style={{display:"flex",gap:6,flexShrink:0}}>
+            {[{act:()=>setMenus(p=>p.map(x=>x.id===m.id?{...x,available:!x.available}:x)),bg:m.available?"var(--green-dim)":"var(--card2)",col:m.available?"var(--green)":"var(--muted)",icon:m.available?"M20 6L9 17l-5-5":"M18 6L6 18 M6 6l12 12"},
+              {act:()=>open(m),bg:"var(--amber-dim)",col:"var(--amber)",icon:"M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"},
+              {act:()=>{supabase.from("menus").delete().eq("id",m.id).then();setMenus(p=>p.filter(x=>x.id!==m.id));},bg:"var(--red-dim)",col:"var(--red)",icon:"M3 6h18 M8 6V4h8v2 M19 6l-1 14"},
+            ].map((b,j)=>(<button key={j} onClick={b.act} style={{width:30,height:30,borderRadius:8,background:b.bg,
+              border:`1px solid ${b.col}33`,color:b.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={b.icon}/></svg>
+            </button>))}
+          </div>
+        );
+        if(layoutMenu==="grid") return(
+          <div key={m.id} className="menu-card" style={{opacity:m.available?1:0.55,border:`1.5px solid ${mitra?"rgba(124,58,237,0.2)":"var(--border)"}`}}>
+            <div className="menu-card-head">
+              <p style={{color:"var(--muted)",fontSize:9,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.category}</p>
+              <p className="menu-card-title">{m.name}</p>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:2}}>
+                {!m.available&&<span style={{background:"rgba(122,106,86,0.15)",color:"var(--muted)",fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:99}}>Habis</span>}
+                {mitra
+                  ?<span style={{background:MITRA_COLORS_DIM[mitraIdx%4],color:MITRA_COLORS[mitraIdx%4],fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:99}}>🤝 {mitra.name}</span>
+                  :<span style={{background:"var(--blue-dim)",color:"var(--blue)",fontSize:9,fontWeight:600,padding:"1px 5px",borderRadius:99}}>Milik Saya</span>}
+              </div>
+            </div>
+            <div>
+              <div className="menu-card-price-row" style={{marginBottom:6}}>
+                <p style={{color:"var(--amber)",fontWeight:800,fontSize:12}}>{rupiah(m.price)}</p>
+                {mitra&&m.hargaMitra&&<span style={{color:"var(--green)",fontSize:9,fontWeight:700}}>+{rupiah(m.price-m.hargaMitra)}</span>}
+              </div>
+              {actionBtns}
+            </div>
+          </div>
+        );
         return(<div key={m.id} style={{background:"var(--card)",border:`1px solid ${mitra?"rgba(124,58,237,0.2)":"var(--border)"}`,borderRadius:12,
-          padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",opacity:m.available?1:0.5}}>
+          padding:"11px 13px",display:"flex",justifyContent:"space-between",alignItems:"center",opacity:m.available?1:0.5}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
               <p style={{color:"var(--text)",fontWeight:600,fontSize:14}}>{m.name}</p>
               {!m.available&&<span style={{background:"rgba(122,106,86,0.15)",color:"var(--muted)",fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99}}>Habis</span>}
             </div>
-            <div style={{display:"flex",gap:7,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:7,marginTop:3,alignItems:"center",flexWrap:"wrap"}}>
               <span style={{background:"var(--amber-dim)",color:"var(--amber)",fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99}}>{m.category}</span>
-              {mitra?(
-                <span style={{background:MITRA_COLORS_DIM[mitraIdx%4],color:MITRA_COLORS[mitraIdx%4],fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99}}>🤝 {mitra.name}</span>
-              ):(
-                <span style={{background:"var(--blue-dim)",color:"var(--blue)",fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99}}>Milik Saya</span>
-              )}
+              {mitra
+                ?<span style={{background:MITRA_COLORS_DIM[mitraIdx%4],color:MITRA_COLORS[mitraIdx%4],fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99}}>🤝 {mitra.name}</span>
+                :<span style={{background:"var(--blue-dim)",color:"var(--blue)",fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99}}>Milik Saya</span>}
             </div>
-            <div style={{display:"flex",gap:9,marginTop:4,alignItems:"baseline"}}>
+            <div style={{display:"flex",gap:8,marginTop:3,alignItems:"baseline"}}>
               <p style={{color:"var(--amber)",fontWeight:700,fontSize:13}}>{rupiah(m.price)}</p>
               {mitra&&m.hargaMitra&&(
                 <p style={{color:"var(--muted)",fontSize:11}}>modal <span style={{color:"var(--red)",fontWeight:600}}>{rupiah(m.hargaMitra)}</span>
@@ -3066,15 +3205,7 @@ const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
               )}
             </div>
           </div>
-          <div style={{display:"flex",gap:7,flexShrink:0,marginLeft:8}}>
-            {[{act:()=>setMenus(p=>p.map(x=>x.id===m.id?{...x,available:!x.available}:x)),bg:m.available?"var(--green-dim)":"var(--card2)",col:m.available?"var(--green)":"var(--muted)",icon:m.available?"M20 6L9 17l-5-5":"M18 6L6 18 M6 6l12 12"},
-              {act:()=>open(m),bg:"var(--amber-dim)",col:"var(--amber)",icon:"M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"},
-              {act:()=>{supabase.from("menus").delete().eq("id",m.id).then();setMenus(p=>p.filter(x=>x.id!==m.id));},bg:"var(--red-dim)",col:"var(--red)",icon:"M3 6h18 M8 6V4h8v2 M19 6l-1 14"},
-            ].map((b,j)=>(<button key={j} onClick={b.act} style={{width:32,height:32,borderRadius:8,background:b.bg,
-              border:`1px solid ${b.col}33`,color:b.col,display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={b.icon}/></svg>
-            </button>))}
-          </div>
+          <div style={{marginLeft:8}}>{actionBtns}</div>
         </div>);
       })}
     </div>
@@ -3174,10 +3305,34 @@ const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
           )}
           <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
             {allCats.map(c=>(
-              <button key={c} onClick={()=>setForm(p=>({...p,category:c}))} style={{padding:"8px 14px",borderRadius:9,flexShrink:0,
-                background:form.category===c?"var(--amber-dim)":"var(--card2)",color:form.category===c?"var(--amber)":"var(--muted)",
-                border:`1px solid ${form.category===c?"rgba(245,166,35,0.35)":"var(--border)"}`,fontSize:12,fontWeight:600,cursor:"pointer"}}>{c}
-              </button>
+              <div key={c} style={{display:"flex",alignItems:"center",gap:0,borderRadius:9,overflow:"hidden",
+                border:`1.5px solid ${form.category===c?"rgba(245,166,35,0.45)":"var(--border)"}`,
+                background:form.category===c?"var(--amber-dim)":"var(--card2)",flexShrink:0}}>
+                {editCat?.old===c?(
+                  <div style={{display:"flex",alignItems:"center",gap:4,padding:"4px 6px"}}>
+                    <input autoFocus value={editCat.val} onChange={e=>setEditCat(p=>({...p,val:e.target.value}))}
+                      onKeyDown={e=>{if(e.key==="Enter")renameCategory(c,editCat.val);if(e.key==="Escape")setEditCat(null);}}
+                      style={{width:90,padding:"3px 7px",borderRadius:6,border:"1px solid var(--border)",background:"#fff",fontSize:12,outline:"none",fontFamily:"'DM Sans',sans-serif",color:"var(--text)"}}/>
+                    <button onClick={()=>renameCategory(c,editCat.val)} style={{padding:"3px 8px",borderRadius:6,background:"var(--amber)",color:"#fff",fontWeight:700,fontSize:11,border:"none",cursor:"pointer",flexShrink:0}}>✓</button>
+                    <button onClick={()=>setEditCat(null)} style={{padding:"3px 6px",borderRadius:6,background:"var(--card2)",color:"var(--muted)",fontWeight:700,fontSize:11,border:"1px solid var(--border)",cursor:"pointer",flexShrink:0}}>✕</button>
+                  </div>
+                ):(
+                  <>
+                    <button onClick={()=>setForm(p=>({...p,category:c}))}
+                      style={{padding:"7px 10px",background:"none",border:"none",color:form.category===c?"var(--amber)":"var(--muted)",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                      {c}
+                    </button>
+                    <button onClick={()=>setEditCat({old:c,val:c})}
+                      style={{padding:"5px 5px",background:"none",border:"none",borderLeft:"1px solid var(--border)",color:"var(--muted)",cursor:"pointer",display:"flex",alignItems:"center",lineHeight:1}}>
+                      <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button onClick={()=>deleteCategory(c)}
+                      style={{padding:"5px 5px",background:"none",border:"none",borderLeft:"1px solid var(--border)",color:"var(--red)",cursor:"pointer",display:"flex",alignItems:"center",lineHeight:1}}>
+                      <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                    </button>
+                  </>
+                )}
+              </div>
             ))}
           </div>
         </div>
