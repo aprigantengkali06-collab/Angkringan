@@ -2024,6 +2024,65 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
   const [pgTrx,setPgTrx]=useState(0);
   const [detailOrder,setDetailOrder]=useState(null);
 
+  // ── Detail Order Modal ──
+  const detailKasir = detailOrder ? kasirs.find(k=>k.id===detailOrder.kasirId) : null;
+  const detailModal = detailOrder && (
+    <div onClick={()=>setDetailOrder(null)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"flex-end",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)"}}>
+      <div className="fu" onClick={e=>e.stopPropagation()} style={{width:"100%",background:"#fff",borderRadius:"22px 22px 0 0",maxHeight:"85vh",display:"flex",flexDirection:"column",boxShadow:"0 -8px 48px rgba(15,23,42,0.18)"}}>
+        {/* handle */}
+        <div style={{display:"flex",justifyContent:"center",padding:"12px 0 0",flexShrink:0}}>
+          <div style={{width:40,height:4,borderRadius:99,background:"#D1D5DB"}}/>
+        </div>
+        {/* header */}
+        <div style={{padding:"14px 20px 12px",borderBottom:"1px solid var(--border)",flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <p style={{fontWeight:800,fontSize:18,color:"var(--text)"}}>{detailOrder.customerName}</p>
+              <PaymentMeta order={detailOrder}/>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <p style={{fontWeight:800,fontSize:18,color:"var(--green)"}}>{rupiah(detailOrder.total)}</p>
+              {detailKasir&&<span style={{background:"var(--amber-dim)",color:"var(--amber)",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99}}>{detailKasir.name}</span>}
+            </div>
+          </div>
+        </div>
+        {/* items */}
+        <div style={{flex:1,overflowY:"auto",padding:"14px 20px"}}>
+          <p style={{fontSize:10,color:"var(--muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Detail Pesanan</p>
+          {detailOrder.items.map((item,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingBottom:10,marginBottom:10,
+              borderBottom:i<detailOrder.items.length-1?"1px solid var(--border)":"none"}}>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{color:"var(--text)",fontWeight:600,fontSize:14}}>{item.name}</p>
+                {item.note&&<p style={{color:"var(--blue)",fontSize:11,marginTop:2}}>📝 {item.note}</p>}
+                <p style={{color:"var(--muted)",fontSize:12,marginTop:2}}>{item.qty} × {rupiah(item.price)}</p>
+              </div>
+              <p style={{color:"var(--text)",fontWeight:700,fontSize:14,flexShrink:0,marginLeft:12}}>{rupiah(item.qty*item.price)}</p>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,borderTop:"2px solid var(--border)",marginTop:4}}>
+            <span style={{fontWeight:700,fontSize:15,color:"var(--text)"}}>Total</span>
+            <span style={{fontWeight:800,fontSize:18,color:"var(--green)"}}>{rupiah(detailOrder.total)}</span>
+          </div>
+        </div>
+        {/* actions */}
+        <div style={{padding:"12px 20px calc(env(safe-area-inset-bottom) + 16px)",borderTop:"1px solid var(--border)",display:"flex",gap:10,flexShrink:0}}>
+          <button onClick={()=>printStruk(detailOrder,0,kasirs,receiptSettings,"lunas")}
+            style={{flex:1,padding:"13px",borderRadius:13,border:"none",background:"linear-gradient(135deg,#F59E0B,#F97316)",
+            color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 16px rgba(245,158,11,0.28)"}}>
+            🧾 Cetak Struk
+          </button>
+          <button onClick={()=>setDetailOrder(null)}
+            style={{flex:1,padding:"13px",borderRadius:13,border:"1px solid var(--border)",background:"var(--card2)",
+            color:"var(--muted)",fontWeight:600,fontSize:14,cursor:"pointer"}}>
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+
   const total=cart.reduce((s,c)=>s+c.price*c.qty,0);
   const cartKey=(menuId,suhu,note="",price=0,name="")=>buildItemKey({menuId,suhu,note,price,name});
   const qtyOf=(menuId,suhu,note="")=>cart.find(c=>c.cartKey===cartKey(menuId,suhu,note,c.price,c.name))?.qty||0;
@@ -2183,66 +2242,10 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
         })()}
       </div>
     </div>
-  );
-
-  // ── Detail Order Modal ──
-  const detailKasir = detailOrder ? kasirs.find(k=>k.id===detailOrder.kasirId) : null;
-  const detailModal = detailOrder && (
-    <div onClick={()=>setDetailOrder(null)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"flex-end",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)"}}>
-      <div className="fu" onClick={e=>e.stopPropagation()} style={{width:"100%",background:"#fff",borderRadius:"22px 22px 0 0",maxHeight:"85vh",display:"flex",flexDirection:"column",boxShadow:"0 -8px 48px rgba(15,23,42,0.18)"}}>
-        {/* handle */}
-        <div style={{display:"flex",justifyContent:"center",padding:"12px 0 0",flexShrink:0}}>
-          <div style={{width:40,height:4,borderRadius:99,background:"#D1D5DB"}}/>
-        </div>
-        {/* header */}
-        <div style={{padding:"14px 20px 12px",borderBottom:"1px solid var(--border)",flexShrink:0}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div>
-              <p style={{fontWeight:800,fontSize:18,color:"var(--text)"}}>{detailOrder.customerName}</p>
-              <PaymentMeta order={detailOrder}/>
-            </div>
-            <div style={{textAlign:"right"}}>
-              <p style={{fontWeight:800,fontSize:18,color:"var(--green)"}}>{rupiah(detailOrder.total)}</p>
-              {detailKasir&&<span style={{background:"var(--amber-dim)",color:"var(--amber)",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99}}>{detailKasir.name}</span>}
-            </div>
-          </div>
-        </div>
-        {/* items */}
-        <div style={{flex:1,overflowY:"auto",padding:"14px 20px"}}>
-          <p style={{fontSize:10,color:"var(--muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Detail Pesanan</p>
-          {detailOrder.items.map((item,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingBottom:10,marginBottom:10,
-              borderBottom:i<detailOrder.items.length-1?"1px solid var(--border)":"none"}}>
-              <div style={{flex:1,minWidth:0}}>
-                <p style={{color:"var(--text)",fontWeight:600,fontSize:14}}>{item.name}</p>
-                {item.note&&<p style={{color:"var(--blue)",fontSize:11,marginTop:2}}>📝 {item.note}</p>}
-                <p style={{color:"var(--muted)",fontSize:12,marginTop:2}}>{item.qty} × {rupiah(item.price)}</p>
-              </div>
-              <p style={{color:"var(--text)",fontWeight:700,fontSize:14,flexShrink:0,marginLeft:12}}>{rupiah(item.qty*item.price)}</p>
-            </div>
-          ))}
-          <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,borderTop:"2px solid var(--border)",marginTop:4}}>
-            <span style={{fontWeight:700,fontSize:15,color:"var(--text)"}}>Total</span>
-            <span style={{fontWeight:800,fontSize:18,color:"var(--green)"}}>{rupiah(detailOrder.total)}</span>
-          </div>
-        </div>
-        {/* actions */}
-        <div style={{padding:"12px 20px calc(env(safe-area-inset-bottom) + 16px)",borderTop:"1px solid var(--border)",display:"flex",gap:10,flexShrink:0}}>
-          <button onClick={()=>printStruk(detailOrder,0,kasirs,receiptSettings,"lunas")}
-            style={{flex:1,padding:"13px",borderRadius:13,border:"none",background:"linear-gradient(135deg,#F59E0B,#F97316)",
-            color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 16px rgba(245,158,11,0.28)"}}>
-            🧾 Cetak Struk
-          </button>
-          <button onClick={()=>setDetailOrder(null)}
-            style={{flex:1,padding:"13px",borderRadius:13,border:"1px solid var(--border)",background:"var(--card2)",
-            color:"var(--muted)",fontWeight:600,fontSize:14,cursor:"pointer"}}>
-            Tutup
-          </button>
-        </div>
-      </div>
-    </div>
     {detailModal}
   );
+
+
 
   if(step==="menu")return(<div className="pos-menu-screen" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
     <div style={{padding:"11px 18px 9px",borderBottom:"1px solid var(--border)",flexShrink:0}}>
