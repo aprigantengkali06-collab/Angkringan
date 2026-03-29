@@ -2241,8 +2241,8 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
           </>);
         })()}
       </div>
+      {detailModal}
     </div>
-    {detailModal}
   );
 
 
