@@ -546,26 +546,43 @@ const escapeHtml = value => String(value || "")
   .replace(/\"/g, "&quot;")
   .replace(/'/g, "&#39;");
 
+const parseBridgeJson = raw => {
+  if (!raw) return { ok:false };
+  try { return JSON.parse(raw); }
+  catch { return { ok: raw === "OK" || raw === "true", raw }; }
+};
 const getNativePrinterBridge = () => {
   if (typeof window === "undefined") return null;
   const capacitorPrinter = window.Capacitor?.Plugins?.ThermalPrinter;
   if (capacitorPrinter?.printReceipt) {
     return {
       printReceipt: payload => capacitorPrinter.printReceipt({ payload }),
+      getPrinterInfo: () => capacitorPrinter.getPrinterInfo?.() || { ok:false },
+      getPrinterStatus: () => capacitorPrinter.getPrinterStatus?.() || { ok:false },
+      selectPrinter: () => capacitorPrinter.selectPrinter?.() || { ok:false },
+      clearPrinter: () => capacitorPrinter.clearPrinter?.() || { ok:false },
     };
   }
   const androidBridge = window.AngkringanPrinterBridge;
   if (androidBridge?.printReceipt) {
     return {
-      printReceipt: async payload => {
-        const raw = androidBridge.printReceipt(JSON.stringify(payload));
-        if (!raw) return { ok:false };
-        try { return JSON.parse(raw); }
-        catch { return { ok: raw === "OK" || raw === "true", raw }; }
-      },
+      printReceipt: async payload => parseBridgeJson(androidBridge.printReceipt(JSON.stringify(payload))),
+      getPrinterInfo: async () => parseBridgeJson(androidBridge.getPrinterInfo?.()),
+      getPrinterStatus: async () => parseBridgeJson(androidBridge.getPrinterStatus?.()),
+      selectPrinter: async () => parseBridgeJson(androidBridge.selectPrinter?.()),
+      clearPrinter: async () => parseBridgeJson(androidBridge.clearPrinter?.()),
     };
   }
   return null;
+};
+const getNativePrinterStatus = async () => {
+  const bridge = getNativePrinterBridge();
+  if (!bridge?.getPrinterStatus) return { ok:false, selected:false, connected:false };
+  try {
+    return await bridge.getPrinterStatus();
+  } catch (err) {
+    return { ok:false, selected:false, connected:false, message: err?.message || "Status printer tidak tersedia" };
+  }
 };
 const buildNativeReceiptPayload = (order, kembalian, kasirs, receiptSettings, mode="lunas", waktu=null) => {
   const kasir = kasirs.find(k=>k.id===order.kasirId);
