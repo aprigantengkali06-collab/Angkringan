@@ -646,6 +646,73 @@ const notifyNativePrintIssue = message => {
     window.alert(msg);
   }
 };
+const defaultPrinterStatus = () => ({
+  nativeShell: isNativePrinterShell(),
+  bluetoothSupported: false,
+  bluetoothEnabled: false,
+  selected: false,
+  paired: false,
+  connected: false,
+  printerName: "",
+  printerAddress: "",
+  message: isNativePrinterShell()
+    ? "Sedang menyiapkan status printer..."
+    : "Status printer Bluetooth hanya tersedia di APK Android.",
+  checkedAt: 0,
+});
+const getPrinterBadgeMeta = status => {
+  if (!status?.nativeShell) return {label:"Browser", bg:"rgba(100,116,139,0.12)", color:"var(--muted)", dot:"#94A3B8"};
+  if (status?.connected) return {label:"Printer siap", bg:"rgba(16,185,129,0.12)", color:"var(--green)", dot:"#10B981"};
+  if (status?.selected && status?.paired) return {label:"Printer offline", bg:"rgba(245,158,11,0.14)", color:"var(--amber)", dot:"#F59E0B"};
+  if (status?.bluetoothSupported && status?.bluetoothEnabled===false) return {label:"Bluetooth mati", bg:"rgba(239,68,68,0.12)", color:"var(--red)", dot:"#EF4444"};
+  return {label:"Belum pilih", bg:"rgba(37,99,235,0.10)", color:"var(--blue)", dot:"#2563EB"};
+};
+const PrinterStatusBadge = ({status,busy,onClick}) => {
+  const meta = getPrinterBadgeMeta(status || defaultPrinterStatus());
+  return (
+    <button onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:12,background:meta.bg,border:`1px solid ${meta.dot}22`,color:meta.color,fontWeight:800,fontSize:12,flexShrink:0,maxWidth:148}}>
+      <span style={{width:8,height:8,borderRadius:"50%",background:meta.dot,boxShadow:`0 0 0 4px ${meta.dot}22`,flexShrink:0}}/>
+      <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{busy?"Memeriksa...":meta.label}</span>
+    </button>
+  );
+};
+const PrinterToolsCard = ({status,busy,onSelect,onRefresh,onClear}) => {
+  const meta = getPrinterBadgeMeta(status || defaultPrinterStatus());
+  const checkedLabel = status?.checkedAt
+    ? new Date(status.checkedAt).toLocaleTimeString("id-ID", {hour:"2-digit", minute:"2-digit", second:"2-digit"})
+    : "belum dicek";
+  return (
+    <Card style={{display:"flex",flexDirection:"column",gap:12,border:`1px solid ${meta.dot}22`,background:"linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}>
+        <div>
+          <p className="sora" style={{fontSize:16,fontWeight:800,color:"var(--text)"}}>Printer struk Bluetooth</p>
+          <p style={{fontSize:12,color:"var(--muted)",lineHeight:1.6,marginTop:4}}>Untuk printer thermal Bluetooth Classic / SPP. Bukan untuk BLE generic.</p>
+        </div>
+        <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:12,background:meta.bg,color:meta.color,fontWeight:800,fontSize:12,flexShrink:0}}>
+          <span style={{width:8,height:8,borderRadius:"50%",background:meta.dot}}/>
+          {busy || meta.label}
+        </div>
+      </div>
+      <div style={{display:"grid",gap:8,padding:"12px 14px",borderRadius:16,background:"rgba(255,255,255,0.86)",border:"1px solid var(--border)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Printer</span><strong style={{color:"var(--text)",textAlign:"right"}}>{status?.printerName || "Belum dipilih"}</strong></div>
+        <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Alamat</span><span style={{color:"var(--text)",fontWeight:600,textAlign:"right"}}>{status?.printerAddress || "-"}</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Bluetooth</span><span style={{color:"var(--text)",fontWeight:700,textAlign:"right"}}>{status?.nativeShell ? (status?.bluetoothEnabled ? "Aktif" : "Tidak aktif") : "Mode browser"}</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Update live</span><span style={{color:"var(--text)",fontWeight:700,textAlign:"right"}}>{checkedLabel}</span></div>
+        <div style={{paddingTop:4,borderTop:"1px dashed var(--border)"}}>
+          <p style={{fontSize:12,color:meta.color,fontWeight:700}}>{status?.message || meta.label}</p>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
+        <Btn onClick={onSelect} disabled={!!busy || !status?.nativeShell}>🖨️ Pilih Printer</Btn>
+        <Btn onClick={onRefresh} v="ghost" disabled={!!busy || !status?.nativeShell}>🔄 Cek Status</Btn>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        <Btn onClick={onClear} v="danger" sm disabled={!!busy || !status?.nativeShell || !status?.selected}>Hapus Printer Tersimpan</Btn>
+        <p style={{fontSize:11,color:"var(--muted)",lineHeight:1.6,flex:1,minWidth:180}}>Status live akan dicek otomatis berkala selama aplikasi dibuka. Saat status <strong style={{color:"var(--green)"}}>Printer siap</strong>, aplikasi sudah bisa lanjut cetak struk.</p>
+      </div>
+    </Card>
+  );
+};
 
 // ── Cetak Struk dari Riwayat (tanpa kembalian) ──
 // CSS struk 58mm yang tepat — dipakai bersama
@@ -3351,7 +3418,7 @@ const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
   </div>);
 };
 
-const DataTools = ({busy,onClose,onBackup,onRestore,onReset,receiptSettings,onSaveReceiptSettings}) => {
+const DataTools = ({busy,onClose,onBackup,onRestore,onReset,receiptSettings,onSaveReceiptSettings,printerStatus,printerBusy,onPrinterSelect,onPrinterRefresh,onPrinterClear}) => {
   const fileRef = useRef(null);
   const [receiptDraft, setReceiptDraft] = useState(()=>normalizeReceiptSettings(receiptSettings));
   useEffect(()=>{
@@ -3378,6 +3445,8 @@ const DataTools = ({busy,onClose,onBackup,onRestore,onReset,receiptSettings,onSa
             <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
+
+        <PrinterToolsCard status={printerStatus} busy={printerBusy} onSelect={onPrinterSelect} onRefresh={onPrinterRefresh} onClear={onPrinterClear}/>
 
         <Card style={{display:"flex",flexDirection:"column",gap:12}}>
           <div>
@@ -3464,6 +3533,8 @@ export default function AngkringanApp() {
   const [currentSessionId, setCurrentSessionId] = useState(()=>{try{const s=localStorage.getItem("currentSessionId");return s?JSON.parse(s):null;}catch{return null;}});
   const [receiptSettings, setReceiptSettings] = useState(()=>{try{const s=localStorage.getItem("receiptSettings");return normalizeReceiptSettings(s?JSON.parse(s):DEFAULT_RECEIPT_SETTINGS);}catch{return normalizeReceiptSettings(DEFAULT_RECEIPT_SETTINGS);}});
   const [dataBusy, setDataBusy] = useState("");
+  const [printerStatus, setPrinterStatus] = useState(()=>defaultPrinterStatus());
+  const [printerBusy, setPrinterBusy] = useState("");
   const [tutupBlockModal, setTutupBlockModal] = useState(null);
   const [detailOrder, setDetailOrder] = useState(null);
   const [alertModal, setAlertModal] = useState(null); // {msg, type}
@@ -3821,6 +3892,108 @@ export default function AngkringanApp() {
     }
   };
 
+  const normalizePrinterStatusState = raw => ({
+    ...defaultPrinterStatus(),
+    ...(raw || {}),
+    nativeShell: isNativePrinterShell(),
+    checkedAt: Date.now(),
+  });
+
+  const refreshPrinterStatus = async ({showBusy=false, busyLabel="Memeriksa status printer...", silent=false} = {}) => {
+    if(showBusy) setPrinterBusy(busyLabel);
+    try{
+      const result = await getNativePrinterStatus();
+      const normalized = normalizePrinterStatusState(result);
+      setPrinterStatus(normalized);
+      return normalized;
+    }catch(err){
+      const failed = normalizePrinterStatusState({
+        ok:false,
+        message: err?.message || "Status printer tidak tersedia",
+      });
+      setPrinterStatus(failed);
+      if(!silent) console.warn("printer status error", err);
+      return failed;
+    }finally{
+      if(showBusy) setPrinterBusy("");
+    }
+  };
+
+  const handlePrinterRefresh = async () => {
+    if(printerBusy) return;
+    const status = await refreshPrinterStatus({showBusy:true, busyLabel:"Memeriksa status printer..."});
+    if(!status?.nativeShell){
+      showAlert("Status printer Bluetooth hanya tersedia saat aplikasi dijalankan dari APK Android.", "info");
+      return;
+    }
+    showAlert(status?.message || "Status printer berhasil diperbarui.", status?.connected ? "success" : "warning");
+  };
+
+  const handlePrinterSelect = async () => {
+    if(printerBusy) return;
+    if(!isNativePrinterShell()){
+      showAlert("Fitur pilih printer hanya tersedia di APK Android.", "info");
+      return;
+    }
+    const bridge = getNativePrinterBridge();
+    if(!bridge?.selectPrinter){
+      showAlert("Bridge printer belum tersedia. Pastikan APK memakai versi native terbaru.", "error");
+      return;
+    }
+    setPrinterBusy("Membuka daftar printer...");
+    try{
+      const result = await bridge.selectPrinter();
+      if(result?.ok){
+        showAlert(`Printer aktif: ${result?.printerName || "Bluetooth Printer"}`, "success");
+      }else{
+        showAlert(result?.message || "Printer belum berhasil dipilih.", "warning");
+      }
+    }catch(err){
+      console.error("select printer error", err);
+      showAlert(err?.message || "Gagal membuka daftar printer Bluetooth.", "error");
+    }finally{
+      setPrinterBusy("");
+      await refreshPrinterStatus({showBusy:false, silent:true});
+    }
+  };
+
+  const handlePrinterClear = async () => {
+    if(printerBusy) return;
+    if(!isNativePrinterShell()){
+      showAlert("Fitur printer Bluetooth hanya tersedia di APK Android.", "info");
+      return;
+    }
+    const bridge = getNativePrinterBridge();
+    if(!bridge?.clearPrinter){
+      showAlert("Bridge clear printer belum tersedia di APK ini.", "error");
+      return;
+    }
+    setPrinterBusy("Menghapus printer tersimpan...");
+    try{
+      const result = await bridge.clearPrinter();
+      if(result?.ok){
+        const cleared = normalizePrinterStatusState({
+          selected:false,
+          paired:false,
+          connected:false,
+          printerName:"",
+          printerAddress:"",
+          message:"Printer tersimpan sudah dihapus. Pilih printer lagi sebelum cetak.",
+        });
+        setPrinterStatus(cleared);
+        showAlert("Printer tersimpan berhasil dihapus.", "success");
+      }else{
+        showAlert(result?.message || "Printer tersimpan gagal dihapus.", "warning");
+      }
+    }catch(err){
+      console.error("clear printer error", err);
+      showAlert(err?.message || "Gagal menghapus printer tersimpan.", "error");
+    }finally{
+      setPrinterBusy("");
+      await refreshPrinterStatus({showBusy:false, silent:true});
+    }
+  };
+
   const handleBuka = async () => {
     if(unresolvedSessionDates.length>1){
       showAlert("Masih ada tagihan terbuka di lebih dari satu sesi. Rapikan order legacy dulu agar sesi tidak bercampur.","warning");
@@ -3860,6 +4033,43 @@ export default function AngkringanApp() {
   };
 
   useEffect(()=>{if(user)localStorage.setItem("user",JSON.stringify(user));else localStorage.removeItem("user");},[user]);
+
+  useEffect(()=>{
+    let cancelled = false;
+    const syncPrinter = async () => {
+      if(!isNativePrinterShell()){
+        if(!cancelled) setPrinterStatus(defaultPrinterStatus());
+        return;
+      }
+      try{
+        const result = await getNativePrinterStatus();
+        if(cancelled) return;
+        setPrinterStatus(normalizePrinterStatusState(result));
+      }catch(err){
+        if(cancelled) return;
+        setPrinterStatus(normalizePrinterStatusState({
+          ok:false,
+          message: err?.message || "Status printer tidak tersedia",
+        }));
+      }
+    };
+    syncPrinter();
+    const interval = setInterval(()=>{
+      if(typeof document === "undefined" || document.visibilityState === "visible") syncPrinter();
+    }, 8000);
+    const onFocus = () => syncPrinter();
+    const onVisibility = () => {
+      if(document.visibilityState === "visible") syncPrinter();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return ()=>{
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  },[]);
 
   // Bersihkan service worker lama agar deploy terbaru tidak tertahan cache PWA lama
   useEffect(()=>{
@@ -4030,15 +4240,20 @@ export default function AngkringanApp() {
       <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
   );
-  const headerRight = isHome ? (
-    <button onClick={()=>setUser(null)} style={{color:"var(--muted)",display:"flex",padding:8,borderRadius:12,background:"rgba(255,255,255,0.68)",border:"1px solid var(--border)",flexShrink:0}}>
-      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9"/></svg>
-    </button>
-  ) : (
-    <button onClick={()=>setScreen("home")} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:12,background:"rgba(255,255,255,0.68)",border:"1px solid var(--border)",color:"var(--muted)",fontWeight:700,fontSize:12,flexShrink:0}}>
-      <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-      <span>Kembali</span>
-    </button>
+  const headerRight = (
+    <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+      <PrinterStatusBadge status={printerStatus} busy={!!printerBusy} onClick={()=>setOverlay("data")}/>
+      {isHome ? (
+        <button onClick={()=>setUser(null)} style={{color:"var(--muted)",display:"flex",padding:8,borderRadius:12,background:"rgba(255,255,255,0.68)",border:"1px solid var(--border)",flexShrink:0}}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9"/></svg>
+        </button>
+      ) : (
+        <button onClick={()=>setScreen("home")} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:12,background:"rgba(255,255,255,0.68)",border:"1px solid var(--border)",color:"var(--muted)",fontWeight:700,fontSize:12,flexShrink:0}}>
+          <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          <span>Kembali</span>
+        </button>
+      )}
+    </div>
   );
 
   return(<><FontStyle/>
@@ -4046,7 +4261,7 @@ export default function AngkringanApp() {
       <MenuDrawer open={navOpen&&!overlay} onClose={()=>setNavOpen(false)} items={navItems} screen={screen} onNavigate={setScreen} isOwner={user.role==="owner"} onOpenTim={()=>setOverlay("tim")} onOpenMenu={()=>setOverlay("menu")} onOpenData={()=>setOverlay("data")} onLogout={()=>setUser(null)}/>
       {overlay==="menu"&&<MenuMgmt menus={menus} setMenus={setMenus} mitras={mitras} onClose={()=>setOverlay(null)}/>}
       {overlay==="tim"&&<Tim kasirs={kasirs} setKasirs={setKasirs} mitras={mitras} setMitras={setMitras} ownerPassword={ownerPassword} setOwnerPassword={setOwnerPassword} onClose={()=>setOverlay(null)}/>}
-      {overlay==="data"&&<DataTools busy={dataBusy} onClose={()=>!dataBusy&&setOverlay(null)} onBackup={handleBackupDownload} onRestore={handleRestoreBackup} onReset={handleResetRingan} receiptSettings={receiptSettings} onSaveReceiptSettings={next=>{setReceiptSettings(normalizeReceiptSettings(next)); showAlert("Teks struk berhasil disimpan.","success");}}/>}
+      {overlay==="data"&&<DataTools busy={dataBusy} onClose={()=>!dataBusy&&setOverlay(null)} onBackup={handleBackupDownload} onRestore={handleRestoreBackup} onReset={handleResetRingan} receiptSettings={receiptSettings} onSaveReceiptSettings={next=>{setReceiptSettings(normalizeReceiptSettings(next)); showAlert("Teks struk berhasil disimpan.","success");}} printerStatus={printerStatus} printerBusy={printerBusy} onPrinterSelect={handlePrinterSelect} onPrinterRefresh={handlePrinterRefresh} onPrinterClear={handlePrinterClear}/>}
 
       {/* ── Alert Modal (pengganti window.alert) ── */}
       {alertModal&&(
