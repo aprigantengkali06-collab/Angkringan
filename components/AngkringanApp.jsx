@@ -622,7 +622,12 @@ const tryNativeReceiptPrint = async payload => {
 };
 const notifyNativePrintIssue = message => {
   if (typeof window === "undefined") return;
-  window.alert(message || "Printer Bluetooth belum siap. Pilih printer struk lalu coba lagi.");
+  const msg = message || "Printer Bluetooth belum siap. Pilih printer struk lalu coba lagi.";
+  if (typeof window.__angkringanAlert === "function") {
+    window.__angkringanAlert(msg, "warning");
+  } else {
+    window.alert(msg);
+  }
 };
 
 // ── Cetak Struk dari Riwayat (tanpa kembalian) ──
@@ -2613,14 +2618,20 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
           return(
             <div key={m.id} className="menu-card">
               <div className="menu-card-head">
-                <p style={{color:"var(--muted)",fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.category}</p>
+                <p style={{color:"var(--muted)",fontSize:9,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.category}</p>
                 <p className="menu-card-title">{m.name}</p>
                 {hasSuhu&&(
-                  <p style={{color:"var(--blue)",fontSize:10,fontWeight:600}}>{m.suhu==="Keduanya"?"Ice / Hot":m.suhu}</p>
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                    {(m.suhu==="Keduanya"||m.suhu==="Ice")&&<span style={{fontSize:9,background:"var(--blue-dim)",color:"var(--blue)",padding:"2px 6px",borderRadius:99,fontWeight:700}}>🧊 Ice</span>}
+                    {(m.suhu==="Keduanya"||m.suhu==="Hot")&&<span style={{fontSize:9,background:"var(--red-dim)",color:"var(--red)",padding:"2px 6px",borderRadius:99,fontWeight:700}}>🔥 Hot</span>}
+                  </div>
                 )}
               </div>
               <div className="menu-card-price-row">
-                <p style={{color:"var(--amber)",fontWeight:700,fontSize:13}}>{rupiah(m.price)}</p>
+                <p style={{color:"var(--amber)",fontWeight:800,fontSize:13}}>{rupiah(m.price)}</p>
+                {m.mitraId&&m.hargaMitra&&m.price>m.hargaMitra&&(
+                  <span style={{background:"var(--green-dim)",color:"var(--green)",fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:99}}>+{rupiah(m.price-m.hargaMitra)}</span>
+                )}
               </div>
               <button className="menu-card-action" onClick={()=>openSheet(m)}>+ Tambah</button>
             </div>
@@ -3007,12 +3018,12 @@ const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
     const row={name:form.name,price:parseInt(form.price),category:form.category,available:form.available,mitra_id:form.mitraId||null,harga_mitra:form.mitraId&&form.hargaMitra?parseInt(form.hargaMitra):null,suhu:form.mitraId?null:form.suhu};
     if(eid){
       const{error}=await supabase.from("menus").upsert({id:eid,...row});
-      if(error){alert("Gagal edit: "+error.message);setSaving(false);return;}
+      if(error){showAlert("Gagal edit: "+error.message,"error");setSaving(false);return;}
       const menuData={...form,price:parseInt(form.price),mitraId:form.mitraId||null,hargaMitra:form.mitraId&&form.hargaMitra?parseInt(form.hargaMitra):null,suhu:form.mitraId?null:form.suhu};
       setMenus(p=>p.map(m=>m.id===eid?{...m,...menuData}:m));
     }else{
       const{data,error}=await supabase.from("menus").insert(row).select().single();
-      if(error){alert("Gagal simpan: "+error.message);setSaving(false);return;}
+      if(error){showAlert("Gagal simpan: "+error.message,"error");setSaving(false);return;}
       const menuData={name:data.name,price:data.price,category:data.category,available:data.available,mitraId:data.mitra_id||null,hargaMitra:data.harga_mitra||null,suhu:data.suhu||null};
       setMenus(p=>[...p,{id:data.id,...menuData}]);
     }
@@ -3290,10 +3301,17 @@ export default function AngkringanApp() {
   const [receiptSettings, setReceiptSettings] = useState(()=>{try{const s=localStorage.getItem("receiptSettings");return normalizeReceiptSettings(s?JSON.parse(s):DEFAULT_RECEIPT_SETTINGS);}catch{return normalizeReceiptSettings(DEFAULT_RECEIPT_SETTINGS);}});
   const [dataBusy, setDataBusy] = useState("");
   const [tutupBlockModal, setTutupBlockModal] = useState(null);
+  const [alertModal, setAlertModal] = useState(null); // {msg, type}
+  const showAlert = (msg, type="info") => setAlertModal({msg, type});
   // POS persistent state — tidak reset saat navigasi ke dashboard/tagihan
   const [posStep, setPosStep] = useState("name");
   const [posName, setPosName] = useState("");
   const [posCart, setPosCart] = useState([]);
+  useEffect(()=>{
+    window.__angkringanAlert = showAlert;
+    return ()=>{ delete window.__angkringanAlert; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
   const [deviceId] = useState(()=>{
     try{
       const saved = localStorage.getItem("deviceId");
@@ -3495,12 +3513,12 @@ export default function AngkringanApp() {
       const stamp = new Date().toISOString().slice(0,19).replace(/[T:]/g, "-");
       const result = await triggerJsonDownload(`backup-angkringan-${stamp}.json`, payload);
       if(!result?.ok) throw new Error("download-failed");
-      alert(result.native
+      showAlert(result.native
         ? `Backup berhasil disimpan ke ${result.savedAt} dengan nama ${result.fileName}.`
-        : `Backup berhasil diunduh. Cek folder Download browser Anda dengan nama ${result.fileName}.`);
+        : `Backup berhasil diunduh. Cek folder Download browser Anda dengan nama ${result.fileName}.`,"success");
     }catch(err){
       console.error("backup error", err);
-      alert("Backup gagal dibuat. Coba lagi.");
+      showAlert("Backup gagal dibuat. Coba lagi.","error");
     }finally{
       setDataBusy("");
     }
@@ -3529,10 +3547,10 @@ export default function AngkringanApp() {
       clearResettableCache();
       await loadFromSupabase();
       setOverlay(null);
-      alert("Reset ringan berhasil. App sekarang kembali kosong untuk transaksi dan menu.");
+      showAlert("Reset ringan berhasil. App sekarang kembali kosong untuk transaksi dan menu.","success");
     }catch(err){
       console.error("reset error", err);
-      alert("Reset gagal. Coba lagi atau cek koneksi internet.");
+      showAlert("Reset gagal. Coba lagi atau cek koneksi internet.","error");
     }finally{
       setDataBusy("");
     }
@@ -3629,10 +3647,10 @@ export default function AngkringanApp() {
       setReceiptSettings(nextReceiptSettings);
       await loadFromSupabase();
       setOverlay(null);
-      alert("Backup berhasil dipulihkan. Silakan cek menu, tim, dashboard, dan laporan Anda.");
+      showAlert("Backup berhasil dipulihkan. Silakan cek menu, tim, dashboard, dan laporan Anda.","success");
     }catch(err){
       console.error("restore error", err);
-      alert("File backup gagal dipulihkan. Pastikan file JSON berasal dari backup aplikasi ini.");
+      showAlert("File backup gagal dipulihkan. Pastikan file JSON berasal dari backup aplikasi ini.","error");
     }finally{
       setDataBusy("");
     }
@@ -3640,7 +3658,7 @@ export default function AngkringanApp() {
 
   const handleBuka = async () => {
     if(unresolvedSessionDates.length>1){
-      alert("Masih ada tagihan terbuka di lebih dari satu sesi. Rapikan order legacy dulu agar sesi tidak bercampur.");
+      showAlert("Masih ada tagihan terbuka di lebih dari satu sesi. Rapikan order legacy dulu agar sesi tidak bercampur.","warning");
       setScreen("tagihan");
       return;
     }
@@ -3863,7 +3881,49 @@ export default function AngkringanApp() {
       <MenuDrawer open={navOpen&&!overlay} onClose={()=>setNavOpen(false)} items={navItems} screen={screen} onNavigate={setScreen} isOwner={user.role==="owner"} onOpenTim={()=>setOverlay("tim")} onOpenMenu={()=>setOverlay("menu")} onOpenData={()=>setOverlay("data")} onLogout={()=>setUser(null)}/>
       {overlay==="menu"&&<MenuMgmt menus={menus} setMenus={setMenus} mitras={mitras} onClose={()=>setOverlay(null)}/>}
       {overlay==="tim"&&<Tim kasirs={kasirs} setKasirs={setKasirs} mitras={mitras} setMitras={setMitras} ownerPassword={ownerPassword} setOwnerPassword={setOwnerPassword} onClose={()=>setOverlay(null)}/>}
-      {overlay==="data"&&<DataTools busy={dataBusy} onClose={()=>!dataBusy&&setOverlay(null)} onBackup={handleBackupDownload} onRestore={handleRestoreBackup} onReset={handleResetRingan} receiptSettings={receiptSettings} onSaveReceiptSettings={next=>{setReceiptSettings(normalizeReceiptSettings(next)); alert("Teks struk berhasil disimpan.");}}/>}
+      {overlay==="data"&&<DataTools busy={dataBusy} onClose={()=>!dataBusy&&setOverlay(null)} onBackup={handleBackupDownload} onRestore={handleRestoreBackup} onReset={handleResetRingan} receiptSettings={receiptSettings} onSaveReceiptSettings={next=>{setReceiptSettings(normalizeReceiptSettings(next)); showAlert("Teks struk berhasil disimpan.","success");}}/>}
+
+      {/* ── Alert Modal (pengganti window.alert) ── */}
+      {alertModal&&(
+        <div onClick={()=>setAlertModal(null)} style={{position:"fixed",inset:0,zIndex:10000,background:"rgba(15,23,42,0.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)"}}>
+          <div className="fu" onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:480,background:"#fff",borderRadius:"24px 24px 0 0",padding:"0 0 calc(env(safe-area-inset-bottom) + 24px)",boxShadow:"0 -8px 48px rgba(15,23,42,0.18)"}}>
+            <div style={{display:"flex",justifyContent:"center",padding:"12px 0 0"}}>
+              <div style={{width:40,height:4,borderRadius:99,background:"#D1D5DB"}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"center",margin:"20px 0 16px"}}>
+              <div style={{width:60,height:60,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
+                background:alertModal.type==="success"?"rgba(16,185,129,0.12)":alertModal.type==="error"?"rgba(239,68,68,0.12)":alertModal.type==="warning"?"rgba(245,158,11,0.12)":"rgba(37,99,235,0.12)"}}>
+                {alertModal.type==="success"&&(
+                  <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                )}
+                {alertModal.type==="error"&&(
+                  <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                )}
+                {alertModal.type==="warning"&&(
+                  <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                )}
+                {alertModal.type==="info"&&(
+                  <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                )}
+              </div>
+            </div>
+            <div style={{textAlign:"center",padding:"0 28px 24px"}}>
+              <p style={{fontWeight:800,fontSize:17,color:"#0F172A",marginBottom:8}}>
+                {alertModal.type==="success"?"Berhasil ✓":alertModal.type==="error"?"Terjadi Kesalahan":alertModal.type==="warning"?"Perhatian":"Info"}
+              </p>
+              <p style={{fontSize:14,color:"#64748B",lineHeight:1.65}}>{alertModal.msg}</p>
+            </div>
+            <div style={{padding:"0 20px"}}>
+              <button onClick={()=>setAlertModal(null)} style={{width:"100%",padding:"14px",borderRadius:14,border:"none",fontWeight:700,fontSize:15,cursor:"pointer",letterSpacing:"0.01em",
+                background:alertModal.type==="success"?"linear-gradient(135deg,#10B981,#059669)":alertModal.type==="error"?"linear-gradient(135deg,#EF4444,#DC2626)":alertModal.type==="warning"?"linear-gradient(135deg,#F59E0B,#F97316)":"linear-gradient(135deg,#2563EB,#4F46E5)",
+                color:"#fff",
+                boxShadow:alertModal.type==="success"?"0 6px 20px rgba(16,185,129,0.28)":alertModal.type==="error"?"0 6px 20px rgba(239,68,68,0.28)":alertModal.type==="warning"?"0 6px 20px rgba(245,158,11,0.28)":"0 6px 20px rgba(37,99,235,0.28)"}}>
+                Oke, Mengerti
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Toast notifikasi tombol back HP ── */}
       {backToast&&(
