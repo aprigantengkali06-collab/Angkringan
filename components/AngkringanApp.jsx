@@ -38,7 +38,14 @@ const FontStyle = () => (
     .nav-shell{grid-area:nav}
     .nav-brand{display:none}
     .dashboard-summary-grid{display:grid;grid-template-columns:1fr;gap:10px}
-    .menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;grid-auto-rows:1fr;align-items:stretch}
+    .menu-card{height:100%;display:flex;flex-direction:column;justify-content:space-between;gap:8px;padding:12px 11px;border-radius:16px;background:var(--card);border:1.5px solid var(--border);box-shadow:0 8px 22px rgba(15,23,42,0.04)}
+    .menu-card.active{background:rgba(245,166,35,0.06);border-color:rgba(245,166,35,0.35);box-shadow:0 8px 20px rgba(245,166,35,0.10)}
+    .menu-card-head{display:flex;flex-direction:column;gap:6px;min-height:84px}
+    .menu-card-title{color:var(--text);font-weight:700;font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
+    .menu-card-price-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
+    .menu-card-action{width:100%;padding:8px 10px;border-radius:10px;margin-top:4px;font-size:12px;font-weight:700;border:1.5px solid rgba(245,166,35,0.2);background:var(--amber-dim);color:var(--amber)}
+    .menu-card-action.active{background:var(--amber);color:#fff;border-color:rgba(245,166,35,0.5)}
     .glass-card{background:rgba(255,255,255,0.82);backdrop-filter:blur(18px)}
     .nav-btn{position:relative;z-index:1}
     .nav-btn.active{color:var(--text)}
@@ -589,16 +596,33 @@ const buildNativeReceiptPayload = (order, kembalian, kasirs, receiptSettings, mo
     footerLines,
   };
 };
+const isNativePrinterShell = () => {
+  if (typeof window === "undefined") return false;
+  return Boolean(window.Capacitor?.Plugins?.ThermalPrinter || window.AngkringanPrinterBridge);
+};
 const tryNativeReceiptPrint = async payload => {
   const bridge = getNativePrinterBridge();
-  if (!bridge) return false;
+  if (!bridge) return { printed:false, nativeShell:isNativePrinterShell(), message:"" };
   try {
     const result = await bridge.printReceipt(payload);
-    return Boolean(result?.ok || result?.success || result?.status === "ok");
+    const printed = Boolean(result?.ok || result?.success || result?.status === "ok");
+    return {
+      printed,
+      nativeShell:true,
+      message: result?.message || result?.error || (printed ? "" : "Printer Bluetooth belum siap. Pilih printer struk lalu coba lagi."),
+    };
   } catch (err) {
-    console.warn("Native printer fallback to browser print", err);
-    return false;
+    console.warn("Native printer unavailable", err);
+    return {
+      printed:false,
+      nativeShell:true,
+      message: err?.message || "Printer Bluetooth belum siap. Pilih printer struk lalu coba lagi.",
+    };
   }
+};
+const notifyNativePrintIssue = message => {
+  if (typeof window === "undefined") return;
+  window.alert(message || "Printer Bluetooth belum siap. Pilih printer struk lalu coba lagi.");
 };
 
 // ── Cetak Struk dari Riwayat (tanpa kembalian) ──
@@ -644,8 +668,9 @@ const printOrderStrukRiwayat = async (order, kasirs, receiptSettings) => {
   const normalizedSettings = normalizeReceiptSettings(receiptSettings);
   const headerLines = splitReceiptLines(normalizedSettings.header);
   const footerLines = splitReceiptLines(normalizedSettings.footerPaid);
-  const nativePrinted = await tryNativeReceiptPrint(buildNativeReceiptPayload(order, 0, kasirs, normalizedSettings, "lunas", waktu));
-  if(nativePrinted) return;
+  const nativePrint = await tryNativeReceiptPrint(buildNativeReceiptPayload(order, 0, kasirs, normalizedSettings, "lunas", waktu));
+  if(nativePrint.printed) return;
+  if(nativePrint.nativeShell){ notifyNativePrintIssue(nativePrint.message); return; }
   const html = `<!DOCTYPE html><html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -683,8 +708,9 @@ const printStruk = async (order, kembalian, kasirs, receiptSettings, mode="lunas
   const normalizedSettings = normalizeReceiptSettings(receiptSettings);
   const headerLines = splitReceiptLines(normalizedSettings.header);
   const footerLines = splitReceiptLines(mode !== "nanti" ? normalizedSettings.footerPaid : normalizedSettings.footerOpen);
-  const nativePrinted = await tryNativeReceiptPrint(buildNativeReceiptPayload(order, kembalian, kasirs, normalizedSettings, mode, waktu));
-  if(nativePrinted) return;
+  const nativePrint = await tryNativeReceiptPrint(buildNativeReceiptPayload(order, kembalian, kasirs, normalizedSettings, mode, waktu));
+  if(nativePrint.printed) return;
+  if(nativePrint.nativeShell){ notifyNativePrintIssue(nativePrint.message); return; }
   const isPaid = mode !== "nanti";
   const dibayar = (Number(order.total)||0)+(Number(kembalian)||0);
   const html = `<!DOCTYPE html><html><head>
@@ -2171,7 +2197,7 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
       </div>)}
       {!showSearch&&<CatBar cats={getCategoryOptions(menus)} active={cat} onChange={setCat}/>}
     </div>
-    <div style={{flex:1,overflowY:"auto",padding:"8px 14px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,alignContent:"start",paddingBottom:cart.length>0?"72px":"10px"}}>
+    <div className="menu-grid" style={{flex:1,overflowY:"auto",padding:"8px 14px",alignContent:"start",paddingBottom:cart.length>0?"72px":"10px"}}>
       {filtered.length===0&&(
         <div style={{gridColumn:"1/-1",textAlign:"center",padding:32}}>
           <p style={{color:"var(--muted)",fontSize:13}}>{search?`Menu "${search}" tidak ditemukan`:"Belum ada menu yang tampil di kategori ini"}</p>
@@ -2181,35 +2207,24 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
         const q=totalQtyOf(m.id);
         const hasSuhu=!m.mitraId&&m.suhu&&m.suhu!=="Tidak Ada";
         return(
-          <div key={m.id} style={{
-            background:q>0?"rgba(245,166,35,0.06)":"var(--card)",
-            border:`1.5px solid ${q>0?"rgba(245,166,35,0.35)":"var(--border)"}`,
-            borderRadius:14,padding:"12px 11px",
-            display:"flex",flexDirection:"column",gap:4,
-            boxShadow:q>0?"0 2px 12px rgba(245,166,35,0.10)":"none"
-          }}>
-            <p style={{color:"var(--muted)",fontSize:9,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.category}</p>
-            <p style={{color:"var(--text)",fontWeight:700,fontSize:13,lineHeight:1.3,flex:1}}>{m.name}</p>
-            {hasSuhu&&(
-              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                {(m.suhu==="Keduanya"||m.suhu==="Ice")&&<span style={{fontSize:9,background:"var(--blue-dim)",color:"var(--blue)",padding:"2px 6px",borderRadius:99,fontWeight:700}}>🧊 Ice</span>}
-                {(m.suhu==="Keduanya"||m.suhu==="Hot")&&<span style={{fontSize:9,background:"var(--red-dim)",color:"var(--red)",padding:"2px 6px",borderRadius:99,fontWeight:700}}>🔥 Hot</span>}
-              </div>
-            )}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2}}>
+          <div key={m.id} className={q>0?"menu-card active":"menu-card"}>
+            <div className="menu-card-head">
+              <p style={{color:"var(--muted)",fontSize:9,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.category}</p>
+              <p className="menu-card-title">{m.name}</p>
+              {hasSuhu&&(
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {(m.suhu==="Keduanya"||m.suhu==="Ice")&&<span style={{fontSize:9,background:"var(--blue-dim)",color:"var(--blue)",padding:"2px 6px",borderRadius:99,fontWeight:700}}>🧊 Ice</span>}
+                  {(m.suhu==="Keduanya"||m.suhu==="Hot")&&<span style={{fontSize:9,background:"var(--red-dim)",color:"var(--red)",padding:"2px 6px",borderRadius:99,fontWeight:700}}>🔥 Hot</span>}
+                </div>
+              )}
+            </div>
+            <div className="menu-card-price-row">
               <p style={{color:"var(--amber)",fontWeight:800,fontSize:13}}>{rupiah(m.price)}</p>
               {m.mitraId&&m.hargaMitra&&m.price>m.hargaMitra&&(
                 <span style={{background:"var(--green-dim)",color:"var(--green)",fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:99}}>+{rupiah(m.price-m.hargaMitra)}</span>
               )}
             </div>
-            <button onClick={()=>openSheet(m)} style={{
-              width:"100%",padding:"7px",borderRadius:9,marginTop:4,
-              background:q>0?"var(--amber)":"var(--amber-dim)",
-              color:q>0?"#fff":"var(--amber)",
-              border:`1.5px solid ${q>0?"rgba(245,166,35,0.5)":"rgba(245,166,35,0.2)"}`,
-              fontSize:12,fontWeight:700,cursor:"pointer",
-              transition:"background 0.15s"
-            }}>
+            <button className={q>0?"menu-card-action active":"menu-card-action"} onClick={()=>openSheet(m)}>
               {q>0?`${q}× Tambah`:"+ Tambah"}
             </button>
           </div>
@@ -2370,6 +2385,7 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
   const [cat,setCat]=useState("Semua");
   const [sheet,setSheet]=useState(null);
   const [sheetSuhu,setSheetSuhu]=useState("Ice");
+  const [sheetQty,setSheetQty]=useState({});
   const [sheetNote,setSheetNote]=useState("");
   const [bayarItem,setBayarItem]=useState(null);
   const [uangItem,setUangItem]=useState("");
@@ -2382,10 +2398,22 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
   const openOrders=orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)===businessDate);
   const carryOverOrders=orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)!==businessDate);
   const ord=orders.find(o=>o.id===sel);
+  const getSheetVariants = menu => {
+    if(!menu || menu.mitraId || !menu.suhu || menu.suhu==="Tidak Ada") return [];
+    return menu.suhu==="Keduanya" ? ["Ice","Hot"] : [menu.suhu==="Hot" ? "Hot" : "Ice"];
+  };
+  const closeSheet = () => {
+    setSheet(null);
+    setSheetNote("");
+    setSheetQty({});
+  };
+  const totalSelectedSheetQty = Object.values(sheetQty).reduce((sum,qty)=>sum+(Number(qty)||0),0);
 
   const openSheet = m => {
     const def=m.suhu==="Hot"?"Hot":"Ice";
+    const variants = getSheetVariants(m);
     setSheetSuhu(def);
+    setSheetQty(variants.reduce((acc,key)=>({ ...acc, [key]:0 }), {}));
     setSheetNote("");
     setSheet(m);
   };
@@ -2393,32 +2421,51 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
   const addItemFromSheet = () => {
     if(!sheet || !sel || !ord) return;
     const m = sheet;
-    const needSuhu=!m.mitraId&&m.suhu&&m.suhu!=="Tidak Ada";
-    const suhu=needSuhu?sheetSuhu:null;
-    const note=sheetNote.trim();
-    const displayName=needSuhu?`${m.name} (${suhu})`:m.name;
-    const lineKey=buildItemKey({menuId:m.id,name:displayName,suhu,note,price:m.price});
-    const addedItem = {cartKey:lineKey,menuId:m.id,name:displayName,price:m.price,qty:1,suhu,note,mitraId:m.mitraId||null,hargaMitra:m.hargaMitra||null};
+    const note = sheetNote.trim();
+    const variants = getSheetVariants(m);
+    const itemsToAdd = variants.length
+      ? variants.map(suhu => {
+          const qty = Number(sheetQty[suhu] || 0);
+          if(qty <= 0) return null;
+          const displayName = `${m.name} (${suhu})`;
+          const lineKey = buildItemKey({menuId:m.id,name:displayName,suhu,note,price:m.price});
+          return {cartKey:lineKey,menuId:m.id,name:displayName,price:m.price,qty,suhu,note,mitraId:m.mitraId||null,hargaMitra:m.hargaMitra||null};
+        }).filter(Boolean)
+      : [{
+          cartKey:buildItemKey({menuId:m.id,name:m.name,suhu:null,note,price:m.price}),
+          menuId:m.id,
+          name:m.name,
+          price:m.price,
+          qty:1,
+          suhu:null,
+          note,
+          mitraId:m.mitraId||null,
+          hargaMitra:m.hargaMitra||null,
+        }];
+    if(!itemsToAdd.length) return;
+
     const addedOrderForPrint = normalizeOrder({
       ...ord,
       status:"open",
       sessionDate: orderSessionDate(ord) || businessDate,
       sessionId: ord.sessionId || currentSessionId || null,
       paidAt:null,
-      items:[addedItem],
-      total:getItemsTotal([addedItem]),
+      items:itemsToAdd,
+      total:getItemsTotal(itemsToAdd),
       lastDeviceId:user.id,
     });
 
     setOrders(prev=>prev.map(order=>{
       if(order.id!==sel) return order;
       const items = [...(order.items||[])];
-      const existingIndex = items.findIndex(item=>getLineKey(item)===lineKey && !item.paid);
-      if(existingIndex>=0){
-        items[existingIndex] = {...items[existingIndex], qty:(Number(items[existingIndex].qty)||0)+1};
-      }else{
-        items.push(addedItem);
-      }
+      itemsToAdd.forEach(addedItem=>{
+        const existingIndex = items.findIndex(item=>getLineKey(item)===addedItem.cartKey && !item.paid);
+        if(existingIndex>=0){
+          items[existingIndex] = {...items[existingIndex], qty:(Number(items[existingIndex].qty)||0) + (Number(addedItem.qty)||0)};
+        }else{
+          items.push(addedItem);
+        }
+      });
       return normalizeOrder({
         ...order,
         sessionDate: orderSessionDate(order) || businessDate,
@@ -2429,8 +2476,7 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
       });
     }));
 
-    setSheet(null);
-    setSheetNote("");
+    closeSheet();
     setAdding(false);
     setSuccessState({type:"tambah",kembalian:0,order:addedOrderForPrint,mode:"nanti"});
   };
@@ -2550,7 +2596,7 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
     <Hdr title={ord.customerName} sub={`Sisa ${rupiah(ord.total)} · Sesi ${fmtShort(orderSessionDate(ord)||businessDate)}`}
       right={<div style={{display:"flex",alignItems:"center",gap:8}}>
         <KasirChip kasirId={ord.kasirId} kasirs={kasirs}/>
-        <button onClick={()=>{setSel(null);setAdding(false);setSheet(null);}} style={{color:"var(--amber)",display:"flex"}}>
+        <button onClick={()=>{setSel(null);setAdding(false);closeSheet();}} style={{color:"var(--amber)",display:"flex"}}>
           <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5 M12 19l-7-7 7-7"/>
           </svg>
@@ -2565,15 +2611,18 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
         {menus.filter(m=>m.available&&(cat==="Semua"||m.category===cat)).map(m=>{
           const hasSuhu=!m.mitraId&&m.suhu&&m.suhu!=="Tidak Ada";
           return(
-            <div key={m.id} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:13,padding:"12px 10px"}}>
-              <p style={{color:"var(--muted)",fontSize:10}}>{m.category}</p>
-              <p style={{color:"var(--text)",fontWeight:600,fontSize:13,margin:"3px 0 6px"}}>{m.name}</p>
-              {hasSuhu&&(
-                <p style={{color:"var(--blue)",fontSize:10,fontWeight:600,marginBottom:6}}>{m.suhu==="Keduanya"?"Ice / Hot":m.suhu}</p>
-              )}
-              <p style={{color:"var(--amber)",fontWeight:700,fontSize:13,marginBottom:9}}>{rupiah(m.price)}</p>
-              <button onClick={()=>openSheet(m)} style={{width:"100%",padding:"7px",borderRadius:8,
-                background:"var(--amber-dim)",color:"var(--amber)",border:"1px solid rgba(245,166,35,0.2)",fontSize:12,fontWeight:600}}>+ Tambah</button>
+            <div key={m.id} className="menu-card">
+              <div className="menu-card-head">
+                <p style={{color:"var(--muted)",fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m.category}</p>
+                <p className="menu-card-title">{m.name}</p>
+                {hasSuhu&&(
+                  <p style={{color:"var(--blue)",fontSize:10,fontWeight:600}}>{m.suhu==="Keduanya"?"Ice / Hot":m.suhu}</p>
+                )}
+              </div>
+              <div className="menu-card-price-row">
+                <p style={{color:"var(--amber)",fontWeight:700,fontSize:13}}>{rupiah(m.price)}</p>
+              </div>
+              <button className="menu-card-action" onClick={()=>openSheet(m)}>+ Tambah</button>
             </div>
           );
         })}
@@ -2625,7 +2674,7 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
       </>
     )}
 
-    {sheet&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:320,display:"flex",alignItems:"flex-end"}} onClick={()=>setSheet(null)}>
+    {sheet&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:320,display:"flex",alignItems:"flex-end"}} onClick={closeSheet}>
       <div className="fu" style={{background:"var(--bg2)",borderRadius:"20px 20px 0 0",width:"100%",display:"flex",flexDirection:"column",maxHeight:"85vh"}} onClick={e=>e.stopPropagation()}>
         <div style={{overflowY:"auto",flex:1,padding:"22px 20px 14px",display:"flex",flexDirection:"column",gap:14}}>
           <div>
@@ -2637,52 +2686,23 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
             <div>
               <p style={{fontSize:11,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Suhu</p>
               <div style={{display:"flex",gap:8}}>
-                {(sheet.suhu==="Keduanya"?["Ice","Hot"]:[sheet.suhu==="Hot"?"Hot":"Ice"]).map(s=>{
-                  const m=sheet;
-                  const displayName=`${m.name} (${s})`;
-                  const lineKey=buildItemKey({menuId:m.id,name:displayName,suhu:s,note:sheetNote.trim(),price:m.price});
-                  const countSuhu=(ord?.items||[]).filter(i=>i.menuId===m.id&&i.suhu===s).reduce((acc,i)=>acc+(Number(i.qty)||0),0);
+                {getSheetVariants(sheet).map(s=>{
                   const isIce=s==="Ice";
                   const clr=isIce?"var(--blue)":"var(--red)";
                   const bgDim=isIce?"var(--blue-dim)":"var(--red-dim)";
                   const brd=isIce?"rgba(59,130,246,0.4)":"rgba(239,68,68,0.4)";
-                  const addOne=()=>{
-                    if(!sel||!ord)return;
-                    const note=sheetNote.trim();
-                    const key=buildItemKey({menuId:m.id,name:displayName,suhu:s,note,price:m.price});
-                    const addedItem={cartKey:key,menuId:m.id,name:displayName,price:m.price,qty:1,suhu:s,note,mitraId:m.mitraId||null,hargaMitra:m.hargaMitra||null};
-                    setOrders(prev=>prev.map(order=>{
-                      if(order.id!==sel)return order;
-                      const items=[...(order.items||[])];
-                      const ei=items.findIndex(i=>getLineKey(i)===key&&!i.paid);
-                      if(ei>=0)items[ei]={...items[ei],qty:(Number(items[ei].qty)||0)+1};
-                      else items.push(addedItem);
-                      return normalizeOrder({...order,sessionDate:orderSessionDate(order)||businessDate,sessionId:order.sessionId||currentSessionId||null,items,total:getItemsTotal(items.filter(i=>!i.paid)),lastDeviceId:user.id});
-                    }));
-                  };
-                  const removeOne=()=>{
-                    if(!sel||!ord)return;
-                    setOrders(prev=>prev.map(order=>{
-                      if(order.id!==sel)return order;
-                      const items=[...(order.items||[])];
-                      const candidates=items.filter(i=>i.menuId===m.id&&i.suhu===s&&!i.paid);
-                      if(!candidates.length)return order;
-                      const last=candidates[candidates.length-1];
-                      const key=getLineKey(last);
-                      const updated=items.map(i=>getLineKey(i)===key?{...i,qty:(Number(i.qty)||0)-1}:i).filter(i=>Number(i.qty)>0);
-                      return normalizeOrder({...order,sessionDate:orderSessionDate(order)||businessDate,sessionId:order.sessionId||currentSessionId||null,items:updated,total:getItemsTotal(updated.filter(i=>!i.paid)),lastDeviceId:user.id});
-                    }));
-                  };
+                  const countSuhu=Number(sheetQty[s]||0);
                   return(
                     <div key={s} style={{flex:1,display:"flex",alignItems:"center",gap:6,background:bgDim,borderRadius:11,padding:"10px 10px",border:`1px solid ${brd}`}}>
-                      <button onClick={removeOne} style={{width:28,height:28,borderRadius:7,background:"rgba(0,0,0,0.08)",border:"none",fontSize:18,fontWeight:800,color:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>−</button>
+                      <button onClick={()=>setSheetQty(prev=>({...prev,[s]:Math.max(0,(Number(prev[s])||0)-1)}))} style={{width:28,height:28,borderRadius:7,background:"rgba(0,0,0,0.08)",border:"none",fontSize:18,fontWeight:800,color:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>−</button>
                       <span style={{flex:1,textAlign:"center",fontWeight:700,fontSize:13,color:clr}}>{isIce?"🧊 Ice":"🔥 Hot"}</span>
-                      <button onClick={addOne} style={{width:28,height:28,borderRadius:7,background:"rgba(0,0,0,0.08)",border:"none",fontSize:18,fontWeight:800,color:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>+</button>
+                      <button onClick={()=>setSheetQty(prev=>({...prev,[s]:(Number(prev[s])||0)+1}))} style={{width:28,height:28,borderRadius:7,background:"rgba(0,0,0,0.08)",border:"none",fontSize:18,fontWeight:800,color:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>+</button>
                       <span style={{fontWeight:800,fontSize:16,color:clr,minWidth:18,textAlign:"center"}}>{countSuhu}</span>
                     </div>
                   );
                 })}
               </div>
+              <p style={{color:"var(--muted)",fontSize:11,marginTop:8}}>Hitungan di popup ini mulai dari 0 dan hanya untuk tambahan baru ke tagihan aktif.</p>
             </div>
           ):null}
           <div>
@@ -2694,10 +2714,7 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
           </div>
         </div>
         <div style={{padding:"12px 20px calc(env(safe-area-inset-bottom) + 88px)",borderTop:"1px solid var(--border)"}}>
-          {(!sheet.mitraId&&sheet.suhu&&sheet.suhu!=="Tidak Ada")
-            ? <Btn onClick={()=>setSheet(null)} full>Selesai</Btn>
-            : <Btn onClick={addItemFromSheet} full>Tambah ke Tagihan</Btn>
-          }
+          <Btn onClick={addItemFromSheet} disabled={getSheetVariants(sheet).length>0 && totalSelectedSheetQty===0} full>Tambah ke Tagihan</Btn>
         </div>
       </div>
     </div>)}
