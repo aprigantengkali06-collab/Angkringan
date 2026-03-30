@@ -412,6 +412,28 @@ const makeAllExps = () => {
 const EXPS0 = makeAllExps();
 
 // ── PDF ──
+
+// ── PrinterPickerOverlay — Overlay pilih printer untuk semua user (kasir & owner) ──
+const PrinterPickerOverlay = ({printerStatus, printerBusy, onSelect, onRefresh, onClear, onClose}) => (
+  <div style={{position:"fixed",inset:0,zIndex:650,background:"rgba(15,23,42,0.34)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+    <div className="fu" style={{width:"min(100%, 440px)",background:"linear-gradient(180deg,#FFFFFF 0%,#F8FAFC 100%)",border:"1px solid var(--border)",borderRadius:24,padding:18,boxShadow:"0 24px 60px rgba(15,23,42,0.20)",display:"flex",flexDirection:"column",gap:14}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:44,height:44,borderRadius:14,background:"rgba(254,243,199,0.9)",border:"1px solid rgba(245,158,11,0.18)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🖨️</div>
+          <div>
+            <p className="sora" style={{fontSize:18,fontWeight:800,color:"var(--text)"}}>Printer Struk</p>
+            <p style={{fontSize:12,color:"var(--muted)",lineHeight:1.5,marginTop:2}}>Pilih printer Bluetooth untuk cetak struk</p>
+          </div>
+        </div>
+        <button onClick={onClose} style={{width:40,height:40,borderRadius:12,border:"1px solid var(--border)",background:"rgba(255,255,255,0.92)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",flexShrink:0}}>
+          <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <PrinterToolsCard status={printerStatus} busy={printerBusy} onSelect={onSelect} onRefresh={onRefresh} onClear={onClear}/>
+    </div>
+  </div>
+);
+
 const printDayPDF = (date, orders, expenses, kasirs, menus=[]) => {
   const paid = orders.filter(o=>o.status==="paid"&&orderSessionDate(o)===date);
   const exps = expenses.filter(e=>expenseDateKey(e)===date);
@@ -1103,6 +1125,7 @@ const DayDetail = ({date, orders, expenses, setExpenses, kasirs, menus, onBack, 
   const [amt, setAmt] = useState("");
   const [ok, setOk] = useState(false);
   const [pgOrders, setPgOrders] = useState(0);
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
 
   const seedSummary = baseSummary || calcFinanceSummary({
     orders: orders.filter(o=>o.status==="paid"&&orderSessionDate(o)===date),
@@ -1186,38 +1209,85 @@ const DayDetail = ({date, orders, expenses, setExpenses, kasirs, menus, onBack, 
             const slice=sorted.slice(pg*PAGE,(pg+1)*PAGE);
             return(<>
               {slice.map((o,idx)=>{
+                const isExpanded = expandedOrderId === o.id;
                 return(
                   <div key={o.id} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:11,
-                    padding:"11px 13px",marginBottom:7}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{width:22,height:22,borderRadius:6,background:"var(--card2)",border:"1px solid var(--border)",
-                          fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
-                          color:"var(--muted)",flexShrink:0}}>{pg*PAGE+idx+1}</span>
-                        <div>
-                          <p style={{color:"var(--text)",fontWeight:600,fontSize:14}}>{o.customerName}</p>
-                          <PaymentMeta order={o}/>
+                    marginBottom:7,overflow:"hidden",transition:"box-shadow 0.18s ease",
+                    boxShadow:isExpanded?"0 4px 16px rgba(0,0,0,0.09)":"none"}}>
+                    {/* ── Header card — klik untuk expand ── */}
+                    <div
+                      onClick={()=>setExpandedOrderId(isExpanded ? null : o.id)}
+                      style={{padding:"11px 13px",cursor:"pointer",userSelect:"none"}}
+                    >
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{width:22,height:22,borderRadius:6,background:"var(--card2)",border:"1px solid var(--border)",
+                            fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",
+                            color:"var(--muted)",flexShrink:0}}>{pg*PAGE+idx+1}</span>
+                          <div>
+                            <p style={{color:"var(--text)",fontWeight:600,fontSize:14}}>{o.customerName}</p>
+                            <PaymentMeta order={o}/>
+                          </div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0,marginLeft:8}}>
+                          <span style={{color:"var(--green)",fontWeight:700,fontSize:14}}>{rupiah(o.total)}</span>
+                          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+                            style={{transition:"transform 0.2s ease",transform:isExpanded?"rotate(180deg)":"rotate(0deg)"}}>
+                            <path d="M6 9l6 6 6-6"/>
+                          </svg>
                         </div>
                       </div>
-                      <span style={{color:"var(--green)",fontWeight:700,fontSize:14,flexShrink:0,marginLeft:8}}>{rupiah(o.total)}</span>
+                      <p style={{color:"var(--muted)",fontSize:11,lineHeight:1.4,paddingLeft:30,
+                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        {o.items.map(i=>`${i.name} ×${i.qty}`).join(" · ")}
+                      </p>
                     </div>
-                    <p style={{color:"var(--muted)",fontSize:11,marginBottom:6,lineHeight:1.4,paddingLeft:30}}>
-                      {o.items.map(i=>`${i.name} ×${i.qty}`).join(" · ")}
-                    </p>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingLeft:30}}>
-                      <KasirChip kasirId={o.kasirId} kasirs={kasirs}/>
-                      <button
-                        onClick={()=>printOrderStrukRiwayat(o, kasirs, receiptSettings)}
-                        style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:8,
-                          background:"var(--blue-dim)",border:"1px solid rgba(37,99,235,0.2)",
-                          color:"var(--blue)",fontWeight:700,fontSize:11,cursor:"pointer",flexShrink:0}}
-                      >
-                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M6 9V2h12v7 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z"/>
-                        </svg>
-                        Struk
-                      </button>
-                    </div>
+                    {/* ── Detail Expanded ── */}
+                    {isExpanded&&(
+                      <div style={{borderTop:"1px solid var(--border)",animation:"fadeUp 0.18s ease both"}}>
+                        {/* Item list */}
+                        <div style={{padding:"10px 13px",display:"flex",flexDirection:"column",gap:0}}>
+                          {o.items.map((it,i)=>(
+                            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                              paddingTop:i===0?0:7,paddingBottom:i<o.items.length-1?7:0,
+                              borderBottom:i<o.items.length-1?"1px solid var(--bg2)":"none"}}>
+                              <div>
+                                <p style={{color:"var(--text)",fontSize:12,fontWeight:600}}>
+                                  {it.name}{it.suhu?` (${it.suhu})`:""}
+                                </p>
+                                {it.note&&<p style={{color:"var(--muted)",fontSize:10,marginTop:1}}>📝 {it.note}</p>}
+                                <p style={{color:"var(--muted)",fontSize:11,marginTop:1}}>×{it.qty} @ {rupiah(it.price)}</p>
+                              </div>
+                              <p style={{color:"var(--text)",fontWeight:700,fontSize:12,flexShrink:0,marginLeft:12}}>
+                                {rupiah(it.qty*it.price)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Total row */}
+                        <div style={{margin:"0 13px",borderTop:"1px solid var(--border)",paddingTop:8,paddingBottom:10,
+                          display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <p style={{color:"var(--muted)",fontSize:11,fontWeight:600}}>Total</p>
+                          <p className="sora" style={{color:"var(--green)",fontWeight:800,fontSize:14}}>{rupiah(o.total)}</p>
+                        </div>
+                        {/* Footer: kasir kiri, struk kanan */}
+                        <div style={{background:"var(--card2)",padding:"8px 13px",display:"flex",
+                          alignItems:"center",justifyContent:"space-between"}}>
+                          <KasirChip kasirId={o.kasirId} kasirs={kasirs}/>
+                          <button
+                            onClick={e=>{e.stopPropagation();printOrderStrukRiwayat(o, kasirs, receiptSettings);}}
+                            style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,marginLeft:"auto",
+                              background:"var(--blue-dim)",border:"1px solid rgba(37,99,235,0.2)",
+                              color:"var(--blue)",fontWeight:700,fontSize:11,cursor:"pointer",flexShrink:0}}
+                          >
+                            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M6 9V2h12v7 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z"/>
+                            </svg>
+                            Struk
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1532,7 +1602,7 @@ const Nav = ({screen,set,role}) => {
   );
 };
 
-const MenuDrawer = ({open,onClose,items,screen,onNavigate,isOwner,onOpenTim,onOpenMenu,onOpenData,onLogout}) => {
+const MenuDrawer = ({open,onClose,items,screen,onNavigate,isOwner,onOpenTim,onOpenMenu,onOpenData,onOpenPrinter,onLogout}) => {
   if(!open) return null;
   return(
     <div style={{position:"absolute",inset:0,zIndex:450,background:"rgba(15,23,42,0.34)",backdropFilter:"blur(4px)",display:"flex"}} onClick={onClose}>
@@ -1570,6 +1640,11 @@ const MenuDrawer = ({open,onClose,items,screen,onNavigate,isOwner,onOpenTim,onOp
             <button onClick={()=>{onClose();onOpenData();}} style={{padding:"12px 10px",borderRadius:14,background:"var(--green-dim)",color:"var(--green)",border:"1px solid rgba(16,185,129,0.18)",fontWeight:800,fontSize:13}}>Data</button>
           </div>
         )}
+        {/* Tombol Printer - visible untuk semua user (kasir & owner) */}
+        <button onClick={()=>{onClose();onOpenPrinter();}} style={{padding:"12px 14px",borderRadius:16,background:"rgba(254,243,199,0.85)",color:"var(--amber)",border:"1px solid rgba(245,158,11,0.22)",fontWeight:800,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,flex:"0 0 auto"}}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg>
+          Pilih Printer Struk
+        </button>
         <div style={{marginTop:"auto",paddingTop:4,flex:"0 0 auto"}}>
           <button onClick={()=>{onClose();onLogout();}} style={{width:"100%",padding:"13px 14px",borderRadius:16,background:"rgba(239,68,68,0.10)",color:"var(--red)",border:"1px solid rgba(239,68,68,0.18)",fontWeight:800,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
             <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9"/></svg>
@@ -4242,7 +4317,7 @@ export default function AngkringanApp() {
   );
   const headerRight = (
     <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
-      <PrinterStatusBadge status={printerStatus} busy={!!printerBusy} onClick={()=>setOverlay("data")}/>
+      <PrinterStatusBadge status={printerStatus} busy={!!printerBusy} onClick={()=>setOverlay(user.role==="owner"?"data":"printer")}/>
       {isHome ? (
         <button onClick={()=>setUser(null)} style={{color:"var(--muted)",display:"flex",padding:8,borderRadius:12,background:"rgba(255,255,255,0.68)",border:"1px solid var(--border)",flexShrink:0}}>
           <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9"/></svg>
@@ -4258,10 +4333,11 @@ export default function AngkringanApp() {
 
   return(<><FontStyle/>
     <div className="app-shell">
-      <MenuDrawer open={navOpen&&!overlay} onClose={()=>setNavOpen(false)} items={navItems} screen={screen} onNavigate={setScreen} isOwner={user.role==="owner"} onOpenTim={()=>setOverlay("tim")} onOpenMenu={()=>setOverlay("menu")} onOpenData={()=>setOverlay("data")} onLogout={()=>setUser(null)}/>
+      <MenuDrawer open={navOpen&&!overlay} onClose={()=>setNavOpen(false)} items={navItems} screen={screen} onNavigate={setScreen} isOwner={user.role==="owner"} onOpenTim={()=>setOverlay("tim")} onOpenMenu={()=>setOverlay("menu")} onOpenData={()=>setOverlay("data")} onOpenPrinter={()=>setOverlay("printer")} onLogout={()=>setUser(null)}/>
       {overlay==="menu"&&<MenuMgmt menus={menus} setMenus={setMenus} mitras={mitras} onClose={()=>setOverlay(null)}/>}
       {overlay==="tim"&&<Tim kasirs={kasirs} setKasirs={setKasirs} mitras={mitras} setMitras={setMitras} ownerPassword={ownerPassword} setOwnerPassword={setOwnerPassword} onClose={()=>setOverlay(null)}/>}
       {overlay==="data"&&<DataTools busy={dataBusy} onClose={()=>!dataBusy&&setOverlay(null)} onBackup={handleBackupDownload} onRestore={handleRestoreBackup} onReset={handleResetRingan} receiptSettings={receiptSettings} onSaveReceiptSettings={next=>{setReceiptSettings(normalizeReceiptSettings(next)); showAlert("Teks struk berhasil disimpan.","success");}} printerStatus={printerStatus} printerBusy={printerBusy} onPrinterSelect={handlePrinterSelect} onPrinterRefresh={handlePrinterRefresh} onPrinterClear={handlePrinterClear}/>}
+      {overlay==="printer"&&<PrinterPickerOverlay printerStatus={printerStatus} printerBusy={printerBusy} onSelect={handlePrinterSelect} onRefresh={handlePrinterRefresh} onClear={handlePrinterClear} onClose={()=>setOverlay(null)}/>}
 
       {/* ── Alert Modal (pengganti window.alert) ── */}
       {alertModal&&(
