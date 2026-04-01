@@ -1,7 +1,7 @@
 "use client";
 import { supabase } from "../lib/supabase";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const FontStyle = () => (
@@ -175,6 +175,33 @@ const toDbOrder = (order, deviceId=null) => ({
   kasir_id: order.kasirId,
   last_device_id: deviceId,
 });
+const mapKasirRow = row => ({id:row.id,name:row.name,password:row.password});
+const mapMitraRow = row => ({id:row.id,name:row.name,pemilik:row.pemilik});
+const mapMenuRow = row => ({id:row.id,name:row.name,price:row.price,category:row.category,available:row.available,mitraId:row.mitra_id||null,hargaMitra:row.harga_mitra||null,suhu:row.suhu||null});
+const mapExpenseRow = row => ({id:row.id,description:row.description,amount:row.amount,date:row.date});
+const mapOrderRow = row => normalizeOrder({
+  id:row.id,
+  customerName:row.customer_name,
+  status:row.status,
+  createdAt:row.created_at,
+  sessionDate:row.session_date,
+  sessionId:row.session_id,
+  paidAt:row.paid_at,
+  items:row.items,
+  total:row.total,
+  kasirId:row.kasir_id,
+  updatedAt:row.updated_at,
+  lastDeviceId:row.last_device_id,
+});
+const upsertById = (list, item) => {
+  const idx = list.findIndex(entry => String(entry?.id) === String(item?.id));
+  if(idx === -1) return [...list, item];
+  const next = [...list];
+  next[idx] = item;
+  return next;
+};
+const removeById = (list, id) => list.filter(entry => String(entry?.id) !== String(id));
+const serializeSimpleRow = row => JSON.stringify(row);
 const getItemMitraModal = (item, menus=[]) => {
   const menuRef = Array.isArray(menus) ? menus.find(m=>String(m.id)===String(item?.menuId)) : null;
   const mitraId = item?.mitraId || menuRef?.mitraId;
@@ -3740,7 +3767,25 @@ export default function AngkringanApp() {
   const businessDate = sessionOpen ? (sessionDate || fmt(new Date())) : fmt(new Date());
 
   const initialized = useRef(false);
+  const [syncReady, setSyncReady] = useState(false);
   const orderSnapshot = useRef(new Map());
+  const syncTimers = useRef({});
+  const syncedRowsRef = useRef({
+    kasirs:new Map(),
+    mitras:new Map(),
+    menus:new Map(),
+    orders:new Map(),
+    expenses:new Map(),
+  });
+  const syncedIdsRef = useRef({
+    kasirs:new Set(),
+    mitras:new Set(),
+    menus:new Set(),
+    orders:new Set(),
+    expenses:new Set(),
+  });
+  const syncedSettingsSignature = useRef("");
+  const latestUiState = useRef({screen:"home", overlay:null, navOpen:false});
 
   const unresolvedOpenOrders = useMemo(
     ()=>orders.filter(o=>o.status==="open"&&Number(o.total)>0),
@@ -3766,28 +3811,37 @@ export default function AngkringanApp() {
         supabase.from("settings").select("*"),
       ]);
 
-      if(kasirRes.data) setKasirs(kasirRes.data.map(r=>({id:r.id,name:r.name,password:r.password})));
-      if(mitraRes.data) setMitras(mitraRes.data.map(r=>({id:r.id,name:r.name,pemilik:r.pemilik})));
-      if(menuRes.data) setMenus(menuRes.data.map(r=>({id:r.id,name:r.name,price:r.price,category:r.category,available:r.available,mitraId:r.mitra_id||null,hargaMitra:r.harga_mitra||null,suhu:r.suhu||null})));
+      if(kasirRes.data){
+        const nextKasirs = kasirRes.data.map(mapKasirRow);
+        syncedRowsRef.current.kasirs = new Map(nextKasirs.map(row=>[String(row.id), serializeSimpleRow(row)]));
+        syncedIdsRef.current.kasirs = new Set(nextKasirs.map(row=>String(row.id)));
+        setKasirs(nextKasirs);
+      }
+      if(mitraRes.data){
+        const nextMitras = mitraRes.data.map(mapMitraRow);
+        syncedRowsRef.current.mitras = new Map(nextMitras.map(row=>[String(row.id), serializeSimpleRow(row)]));
+        syncedIdsRef.current.mitras = new Set(nextMitras.map(row=>String(row.id)));
+        setMitras(nextMitras);
+      }
+      if(menuRes.data){
+        const nextMenus = menuRes.data.map(mapMenuRow);
+        syncedRowsRef.current.menus = new Map(nextMenus.map(row=>[String(row.id), serializeSimpleRow(row)]));
+        syncedIdsRef.current.menus = new Set(nextMenus.map(row=>String(row.id)));
+        setMenus(nextMenus);
+      }
       if(orderRes.data){
-        const nextOrders = orderRes.data.map(r=>normalizeOrder({
-          id:r.id,
-          customerName:r.customer_name,
-          status:r.status,
-          createdAt:r.created_at,
-          sessionDate:r.session_date,
-          sessionId:r.session_id,
-          paidAt:r.paid_at,
-          items:r.items,
-          total:r.total,
-          kasirId:r.kasir_id,
-          updatedAt:r.updated_at,
-          lastDeviceId:r.last_device_id,
-        }));
+        const nextOrders = orderRes.data.map(mapOrderRow);
         orderSnapshot.current = new Map(nextOrders.map(order=>[order.id, serializeOrderForSync(order)]));
+        syncedRowsRef.current.orders = new Map(nextOrders.map(order=>[String(order.id), serializeOrderForSync(order)]));
+        syncedIdsRef.current.orders = new Set(nextOrders.map(order=>String(order.id)));
         setOrders(nextOrders);
       }
-      if(expenseRes.data) setExpenses(expenseRes.data.map(r=>({id:r.id,description:r.description,amount:r.amount,date:r.date})));
+      if(expenseRes.data){
+        const nextExpenses = expenseRes.data.map(mapExpenseRow);
+        syncedRowsRef.current.expenses = new Map(nextExpenses.map(row=>[String(row.id), serializeSimpleRow(row)]));
+        syncedIdsRef.current.expenses = new Set(nextExpenses.map(row=>String(row.id)));
+        setExpenses(nextExpenses);
+      }
       if(settingsRes.data){
         const t=settingsRes.data.find(r=>r.key==="target"); if(t) setTarget(Number(t.value));
         const so=settingsRes.data.find(r=>r.key==="session_open"); if(so) setSessionOpen(so.value==="true");
@@ -3797,7 +3851,16 @@ export default function AngkringanApp() {
         const receiptHeader=settingsRes.data.find(r=>r.key==="receipt_header")?.value;
         const receiptFooterPaid=settingsRes.data.find(r=>r.key==="receipt_footer_paid")?.value;
         const receiptFooterOpen=settingsRes.data.find(r=>r.key==="receipt_footer_open")?.value;
-        setReceiptSettings(normalizeReceiptSettings({header:receiptHeader,footerPaid:receiptFooterPaid,footerOpen:receiptFooterOpen}));
+        const nextReceiptSettings = normalizeReceiptSettings({header:receiptHeader,footerPaid:receiptFooterPaid,footerOpen:receiptFooterOpen});
+        syncedSettingsSignature.current = JSON.stringify({
+          target:Number(t?.value ?? 500000),
+          sessionOpen:so?.value === "true",
+          sessionDate:sd?.value || null,
+          currentSessionId:cs?.value || null,
+          ownerPassword:op?.value || DEFAULT_OWNER_PASSWORD,
+          receiptSettings:nextReceiptSettings,
+        });
+        setReceiptSettings(nextReceiptSettings);
       }
     }catch(err){
       console.error("loadFromSupabase error", err);
@@ -3823,13 +3886,11 @@ export default function AngkringanApp() {
   };
 
   const deleteRowsByIds = async (table, ids) => {
-    const chunkSize = 25;
+    const chunkSize = 100;
     for(let i=0; i<ids.length; i+=chunkSize){
       const chunk = ids.slice(i, i+chunkSize);
-      await Promise.all(chunk.map(async id=>{
-        const { error } = await supabase.from(table).delete().eq("id", id);
-        if(error) throw error;
-      }));
+      const { error } = await supabase.from(table).delete().in("id", chunk);
+      if(error) throw error;
     }
   };
 
@@ -3839,15 +3900,49 @@ export default function AngkringanApp() {
   };
 
   const upsertMany = async (table, rows) => {
-    const chunkSize = 25;
+    const chunkSize = 100;
     for(let i=0; i<rows.length; i+=chunkSize){
       const chunk = rows.slice(i, i+chunkSize);
-      await Promise.all(chunk.map(async row=>{
-        const { error } = await supabase.from(table).upsert(row);
-        if(error) throw error;
-      }));
+      const { error } = await supabase.from(table).upsert(chunk);
+      if(error) throw error;
     }
   };
+
+  const scheduleSyncTask = useCallback((key, task, delay=250) => {
+    if(syncTimers.current[key]) clearTimeout(syncTimers.current[key]);
+    syncTimers.current[key] = setTimeout(async ()=>{
+      try{
+        await task();
+      }catch(err){
+        console.error(`${key} sync error`, err);
+      }finally{
+        delete syncTimers.current[key];
+      }
+    }, delay);
+  },[]);
+
+  const syncCollectionState = useCallback(async ({key, table, rows, serialize, mapForUpsert=(row=>row)}) => {
+    const prevMap = syncedRowsRef.current[key] || new Map();
+    const prevIds = syncedIdsRef.current[key] || new Set();
+    const nextMap = new Map();
+    const nextIds = new Set();
+    const changedRows = [];
+
+    rows.forEach(row=>{
+      const id = String(row.id);
+      const signature = serialize(row);
+      nextMap.set(id, signature);
+      nextIds.add(id);
+      if(prevMap.get(id) !== signature) changedRows.push(row);
+    });
+
+    const deletedIds = [...prevIds].filter(id=>!nextIds.has(id));
+    if(changedRows.length) await upsertMany(table, changedRows.map(mapForUpsert));
+    if(deletedIds.length) await deleteRowsByIds(table, deletedIds);
+
+    syncedRowsRef.current[key] = nextMap;
+    syncedIdsRef.current[key] = nextIds;
+  },[deleteRowsByIds, upsertMany]);
 
   const getNativeFileBridge = () => {
     try{
@@ -4269,37 +4364,35 @@ export default function AngkringanApp() {
   },[]);
   useEffect(()=>{
     window.angkringanIsAtHome = screen==="home";
-  },[screen]);
+    latestUiState.current = {screen, overlay, navOpen};
+  },[screen, overlay, navOpen]);
   // ── Tombol BACK HP via Capacitor App plugin ──
   // Hanya aktif saat berjalan di dalam Capacitor (APK), tidak mengganggu browser/PWA
   useEffect(()=>{
-    // Tutup overlay/drawer jika terbuka
-    const closeTopLayer = () => {
-      if(overlay){setOverlay(null);return true;}
-      if(navOpen){setNavOpen(false);return true;}
-      return false;
-    };
-
     const handleBack = () => {
-      if(closeTopLayer()) return;
+      const {screen:currentScreen, overlay:currentOverlay, navOpen:currentNavOpen} = latestUiState.current;
+      if(currentOverlay){
+        setOverlay(null);
+        return;
+      }
+      if(currentNavOpen){
+        setNavOpen(false);
+        return;
+      }
 
-      if(screen !== "home"){
+      if(currentScreen !== "home"){
         setScreen("home");
         backPressCount.current = 0;
         clearTimeout(backPressTimer.current);
         return;
       }
 
-      // Sudah di Dashboard → hitung back
       backPressCount.current += 1;
       clearTimeout(backPressTimer.current);
-
       if(backPressCount.current >= 2){
         backPressCount.current = 0;
         setBackToast("");
-        // Keluar aplikasi via Capacitor
         try{
-          // @capacitor/app: App.exitApp()
           if(window.Capacitor?.Plugins?.App){
             window.Capacitor.Plugins.App.exitApp();
           }
@@ -4316,15 +4409,12 @@ export default function AngkringanApp() {
       }, 2000);
     };
 
-    // Daftarkan listener via Capacitor App plugin
     let listenerHandle = null;
     const registerCapacitorBack = async () => {
       try{
         const { App: CapApp } = await import("@capacitor/app");
         listenerHandle = await CapApp.addListener("backButton", handleBack);
-      }catch{
-        // Tidak di lingkungan Capacitor, tidak apa-apa
-      }
+      }catch{}
     };
     if(typeof window !== "undefined" && window.Capacitor){
       registerCapacitorBack();
@@ -4334,22 +4424,107 @@ export default function AngkringanApp() {
       if(listenerHandle) listenerHandle.remove();
       clearTimeout(backPressTimer.current);
     };
-  },[screen, overlay, navOpen]);
-  useEffect(()=>{if(!initialized.current) return; localStorage.setItem("target",JSON.stringify(target));supabase.from("settings").upsert({key:"target",value:target}).then();},[target]);
-  useEffect(()=>{if(!initialized.current) return; localStorage.setItem("sessionOpen",JSON.stringify(sessionOpen));supabase.from("settings").upsert({key:"session_open",value:String(sessionOpen)}).then();},[sessionOpen]);
-  useEffect(()=>{if(!initialized.current) return; localStorage.setItem("sessionDate",JSON.stringify(sessionDate));supabase.from("settings").upsert({key:"session_date",value:sessionDate||""}).then();},[sessionDate]);
-  useEffect(()=>{if(!initialized.current) return; localStorage.setItem("currentSessionId",JSON.stringify(currentSessionId));supabase.from("settings").upsert({key:"current_session_id",value:currentSessionId||""}).then();},[currentSessionId]);
-  useEffect(()=>{if(!initialized.current) return; localStorage.setItem("ownerPassword",JSON.stringify(ownerPassword));supabase.from("settings").upsert({key:"owner_password",value:ownerPassword||DEFAULT_OWNER_PASSWORD}).then();},[ownerPassword]);
-  useEffect(()=>{if(!initialized.current) return; localStorage.setItem("receiptSettings",JSON.stringify(receiptSettings));supabase.from("settings").upsert([{key:"receipt_header",value:receiptSettings.header},{key:"receipt_footer_paid",value:receiptSettings.footerPaid},{key:"receipt_footer_open",value:receiptSettings.footerOpen}]).then();},[receiptSettings]);
-
-  useEffect(()=>{
-    loadFromSupabase().finally(()=>{ initialized.current=true; });
   },[]);
 
   useEffect(()=>{
-    if(!initialized.current) return;
-    const refresh = ()=>loadFromSupabase();
-    const interval = setInterval(refresh, 15000);
+    if(!syncReady) return;
+    const signature = JSON.stringify({
+      target,
+      sessionOpen,
+      sessionDate,
+      currentSessionId,
+      ownerPassword:ownerPassword || DEFAULT_OWNER_PASSWORD,
+      receiptSettings:normalizeReceiptSettings(receiptSettings),
+    });
+    localStorage.setItem("target",JSON.stringify(target));
+    localStorage.setItem("sessionOpen",JSON.stringify(sessionOpen));
+    localStorage.setItem("sessionDate",JSON.stringify(sessionDate));
+    localStorage.setItem("currentSessionId",JSON.stringify(currentSessionId));
+    localStorage.setItem("ownerPassword",JSON.stringify(ownerPassword));
+    localStorage.setItem("receiptSettings",JSON.stringify(receiptSettings));
+    if(syncedSettingsSignature.current === signature) return;
+    syncedSettingsSignature.current = signature;
+    scheduleSyncTask("settings", async ()=>{
+      await upsertMany("settings", [
+        {key:"target",value:String(target)},
+        {key:"session_open",value:String(sessionOpen)},
+        {key:"session_date",value:sessionDate||""},
+        {key:"current_session_id",value:currentSessionId||""},
+        {key:"owner_password",value:ownerPassword||DEFAULT_OWNER_PASSWORD},
+        {key:"receipt_header",value:receiptSettings.header},
+        {key:"receipt_footer_paid",value:receiptSettings.footerPaid},
+        {key:"receipt_footer_open",value:receiptSettings.footerOpen},
+      ]);
+    }, 180);
+  },[target, sessionOpen, sessionDate, currentSessionId, ownerPassword, receiptSettings, scheduleSyncTask]);
+
+  useEffect(()=>{
+    let cancelled = false;
+    loadFromSupabase().finally(()=>{
+      if(!cancelled){
+        initialized.current = true;
+        setSyncReady(true);
+      }
+    });
+    return ()=>{
+      cancelled = true;
+      Object.values(syncTimers.current).forEach(timer=>clearTimeout(timer));
+    };
+  },[]);
+
+  useEffect(()=>{
+    if(!syncReady) return;
+    const scheduleRemoteRefresh = () => {
+      scheduleSyncTask("remote-refresh", async ()=>{
+        await loadFromSupabase();
+      }, 220);
+    };
+
+    const applyRealtimeRow = ({key, payload, mapRow, setState, serialize=serializeSimpleRow, skipSelf=false}) => {
+      if(skipSelf && payload?.new?.last_device_id === deviceId) return;
+      if(payload.eventType === "DELETE"){
+        const deletedId = payload.old?.id;
+        if(deletedId == null) return;
+        syncedRowsRef.current[key]?.delete(String(deletedId));
+        syncedIdsRef.current[key]?.delete(String(deletedId));
+        if(key === "orders") orderSnapshot.current.delete(deletedId);
+        setState(prev=>removeById(prev, deletedId));
+        return;
+      }
+      if(!payload.new) return;
+      const nextRow = mapRow(payload.new);
+      const signature = serialize(nextRow);
+      syncedRowsRef.current[key]?.set(String(nextRow.id), signature);
+      syncedIdsRef.current[key]?.add(String(nextRow.id));
+      if(key === "orders") orderSnapshot.current.set(nextRow.id, signature);
+      setState(prev=>upsertById(prev, nextRow));
+    };
+
+    const channel = supabase.channel(`angkringan-live-${deviceId}`)
+      .on("postgres_changes", {event:"*", schema:"public", table:"orders"}, payload=>applyRealtimeRow({key:"orders", payload, mapRow:mapOrderRow, setState:setOrders, serialize:serializeOrderForSync, skipSelf:true}))
+      .on("postgres_changes", {event:"*", schema:"public", table:"expenses"}, payload=>applyRealtimeRow({key:"expenses", payload, mapRow:mapExpenseRow, setState:setExpenses}))
+      .on("postgres_changes", {event:"*", schema:"public", table:"menus"}, payload=>applyRealtimeRow({key:"menus", payload, mapRow:mapMenuRow, setState:setMenus}))
+      .on("postgres_changes", {event:"*", schema:"public", table:"kasirs"}, payload=>applyRealtimeRow({key:"kasirs", payload, mapRow:mapKasirRow, setState:setKasirs}))
+      .on("postgres_changes", {event:"*", schema:"public", table:"mitras"}, payload=>applyRealtimeRow({key:"mitras", payload, mapRow:mapMitraRow, setState:setMitras}))
+      .on("postgres_changes", {event:"*", schema:"public", table:"settings"}, ()=>scheduleRemoteRefresh())
+      .subscribe(status=>{
+        if(status === "CHANNEL_ERROR" || status === "TIMED_OUT") scheduleRemoteRefresh();
+      });
+
+    return ()=>{
+      supabase.removeChannel(channel).catch(()=>{});
+    };
+  },[deviceId, scheduleSyncTask]);
+
+  useEffect(()=>{
+    if(!syncReady) return;
+    const refresh = () => {
+      if(typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      scheduleSyncTask("fallback-refresh", async ()=>{
+        await loadFromSupabase();
+      }, 260);
+    };
+    const interval = setInterval(refresh, 120000);
     const onVisible = ()=>{ if(document.visibilityState==="visible") refresh(); };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisible);
@@ -4358,7 +4533,7 @@ export default function AngkringanApp() {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  },[]);
+  },[scheduleSyncTask]);
 
   useEffect(()=>{
     if(sessionOpen && !currentSessionId){
@@ -4368,40 +4543,64 @@ export default function AngkringanApp() {
   },[sessionOpen, currentSessionId, sessionDate, unresolvedOpenOrders]);
 
   useEffect(()=>{
-    if(!initialized.current) return;
+    if(!syncReady) return;
     localStorage.setItem("kasirs",JSON.stringify(kasirs));
-    kasirs.forEach(k=>supabase.from("kasirs").upsert({id:k.id,name:k.name,password:k.password}).then());
-  },[kasirs]);
+    scheduleSyncTask("kasirs", ()=>syncCollectionState({
+      key:"kasirs",
+      table:"kasirs",
+      rows:kasirs.map(k=>({id:k.id,name:k.name,password:k.password})),
+      serialize:serializeSimpleRow,
+    }), 160);
+  },[kasirs, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
-    if(!initialized.current) return;
+    if(!syncReady) return;
     localStorage.setItem("mitras",JSON.stringify(mitras));
-    mitras.forEach(m=>supabase.from("mitras").upsert({id:m.id,name:m.name,pemilik:m.pemilik}).then());
-  },[mitras]);
+    scheduleSyncTask("mitras", ()=>syncCollectionState({
+      key:"mitras",
+      table:"mitras",
+      rows:mitras.map(m=>({id:m.id,name:m.name,pemilik:m.pemilik})),
+      serialize:serializeSimpleRow,
+    }), 160);
+  },[mitras, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
-    if(!initialized.current) return;
+    if(!syncReady) return;
     localStorage.setItem("menus",JSON.stringify(menus));
-    menus.forEach(m=>supabase.from("menus").upsert({id:m.id,name:m.name,price:m.price,category:m.category,available:m.available,mitra_id:m.mitraId||null,harga_mitra:m.hargaMitra||null,suhu:m.suhu||null}).then());
-  },[menus]);
+    scheduleSyncTask("menus", ()=>syncCollectionState({
+      key:"menus",
+      table:"menus",
+      rows:menus.map(m=>({id:m.id,name:m.name,price:m.price,category:m.category,available:m.available,mitra_id:m.mitraId||null,harga_mitra:m.hargaMitra||null,suhu:m.suhu||null})),
+      serialize:serializeSimpleRow,
+    }), 160);
+  },[menus, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
-    if(!initialized.current) return;
-    const normalizedOrders = orders.map(normalizeOrder);
+    if(!syncReady) return;
+    const normalizedOrders = orders.map(order=>normalizeOrder({...order, sessionId:order.sessionId || currentSessionId || null}));
     localStorage.setItem("orders",JSON.stringify(normalizedOrders));
-    normalizedOrders.forEach(order=>{
-      const serialized = serializeOrderForSync(order);
-      if(orderSnapshot.current.get(order.id)===serialized) return;
-      orderSnapshot.current.set(order.id, serialized);
-      supabase.from("orders").upsert(toDbOrder({...order, sessionId:order.sessionId || currentSessionId || null}, deviceId)).then();
-    });
-  },[orders, currentSessionId, deviceId]);
+    scheduleSyncTask("orders", ()=>syncCollectionState({
+      key:"orders",
+      table:"orders",
+      rows:normalizedOrders.map(order=>({
+        ...toDbOrder(order, deviceId),
+        __syncSignature:serializeOrderForSync(order),
+      })),
+      serialize:row=>row.__syncSignature,
+      mapForUpsert:({__syncSignature, ...dbRow})=>dbRow,
+    }), 140);
+  },[orders, currentSessionId, deviceId, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
-    if(!initialized.current) return;
+    if(!syncReady) return;
     localStorage.setItem("expenses",JSON.stringify(expenses));
-    expenses.forEach(e=>supabase.from("expenses").upsert({id:e.id,description:e.description,amount:e.amount,date:e.date}).then());
-  },[expenses]);
+    scheduleSyncTask("expenses", ()=>syncCollectionState({
+      key:"expenses",
+      table:"expenses",
+      rows:expenses.map(e=>({id:e.id,description:e.description,amount:e.amount,date:e.date})),
+      serialize:serializeSimpleRow,
+    }), 160);
+  },[expenses, scheduleSyncTask, syncCollectionState]);
 
   if(!user)return(<><FontStyle/><div className="app-shell"><Login onLogin={u=>{setUser(u);setScreen("home");}} kasirs={kasirs} ownerPassword={ownerPassword}/></div></>);
 
