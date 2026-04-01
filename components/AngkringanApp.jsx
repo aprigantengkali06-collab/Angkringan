@@ -15,23 +15,23 @@ const FontStyle = () => (
       --red:#EF4444;--red-dim:rgba(239,68,68,0.12);
       --blue:#2563EB;--blue-dim:rgba(37,99,235,0.12);
       --purple:#7C3AED;--purple-dim:rgba(124,58,237,0.12);
-      --cream:#4338CA;--muted:#64748B;--text:#0F172A;--shadow:0 18px 48px rgba(15,23,42,0.08);
+      --cream:#4338CA;--muted:#64748B;--text:#0F172A;--shadow:0 4px 16px rgba(15,23,42,0.07);
     }
-    html,body{background:linear-gradient(180deg,#0F172A 0%,#111827 100%);width:100%;min-height:100%;overflow:hidden}
+    html,body{background:#0F172A;width:100%;min-height:100%;overflow:hidden}
     .sora{font-family:'Sora',sans-serif}
     input,textarea{outline:none;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;width:100%}
     input{padding:12px 14px}
-    button{cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;transition:transform .16s ease, opacity .16s ease, box-shadow .18s ease, background .18s ease, color .18s ease, border-color .18s ease}
-    button:active{transform:translateY(1px)}
-    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    button{cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;transition:opacity .12s ease}
+    button:active{opacity:0.72}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     @keyframes popIn{from{opacity:0;transform:scale(0.3)}to{opacity:1;transform:scale(1)}}
-    .fu{animation:fadeUp 0.28s ease both}
-    .fi{animation:fadeIn 0.2s ease both}
-    .s1{animation-delay:.04s}.s2{animation-delay:.08s}.s3{animation-delay:.12s}.s4{animation-delay:.16s}.s5{animation-delay:.2s}
-    ::-webkit-scrollbar{width:6px;height:6px}
-    ::-webkit-scrollbar-thumb{background:rgba(100,116,139,0.32);border-radius:99px}
-    .app-shell{width:100vw;max-width:none;min-height:100dvh;height:100dvh;display:flex;flex-direction:column;background:radial-gradient(circle at top, rgba(99,102,241,0.14), transparent 28%),linear-gradient(180deg,#F9FBFF 0%,#ECF3FF 100%);margin:0;position:relative;overflow:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+    .fu{animation:fadeUp 0.22s ease both}
+    .fi{animation:fadeIn 0.18s ease both}
+    .s1{animation-delay:.03s}.s2{animation-delay:.06s}.s3{animation-delay:.09s}.s4{animation-delay:.12s}.s5{animation-delay:.15s}
+    ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-thumb{background:rgba(100,116,139,0.25);border-radius:99px}
+    .app-shell{width:100vw;max-width:none;min-height:100dvh;height:100dvh;display:flex;flex-direction:column;background:#F0F5FF;margin:0;position:relative;overflow:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);-webkit-transform:translateZ(0);transform:translateZ(0)}
     .app-frame{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"header" "content" "nav"}
     .hdr-shell{grid-area:header;padding:12px calc(env(safe-area-inset-right) + 16px) 10px calc(env(safe-area-inset-left) + 16px)}
     .screen-shell{grid-area:content;min-height:0;display:flex;flex-direction:column;overflow:hidden}
@@ -39,17 +39,19 @@ const FontStyle = () => (
     .nav-brand{display:none}
     .dashboard-summary-grid{display:grid;grid-template-columns:1fr;gap:10px}
     .menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;grid-auto-rows:1fr;align-items:stretch}
-    .menu-card{height:100%;display:flex;flex-direction:column;justify-content:space-between;gap:8px;padding:12px 11px;border-radius:16px;background:var(--card);border:1.5px solid var(--border);box-shadow:0 8px 22px rgba(15,23,42,0.04)}
-    .menu-card.active{background:rgba(245,166,35,0.06);border-color:rgba(245,166,35,0.35);box-shadow:0 8px 20px rgba(245,166,35,0.10)}
+    .menu-card{height:100%;display:flex;flex-direction:column;justify-content:space-between;gap:8px;padding:12px 11px;border-radius:14px;background:var(--card);border:1.5px solid var(--border);box-shadow:0 2px 8px rgba(15,23,42,0.05)}
+    .menu-card.active{background:rgba(245,166,35,0.06);border-color:rgba(245,166,35,0.35)}
     .menu-card-head{display:flex;flex-direction:column;gap:6px;min-height:84px}
     .menu-card-title{color:var(--text);font-weight:700;font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
     .menu-card-price-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
-    .menu-card-action{width:100%;padding:8px 10px;border-radius:10px;margin-top:4px;font-size:12px;font-weight:700;border:1.5px solid rgba(245,166,35,0.2);background:var(--amber-dim);color:var(--amber)}
-    .menu-card-action.active{background:var(--amber);color:#fff;border-color:rgba(245,166,35,0.5)}
-    .glass-card{background:rgba(255,255,255,0.82);backdrop-filter:blur(18px)}
+    .menu-card-action{width:100%;padding:8px 10px;border-radius:10px;margin-top:4px;font-size:12px;font-weight:700;border:1.5px solid rgba(245,158,11,0.2);background:var(--amber-dim);color:var(--amber)}
+    .menu-card-action.active{background:var(--amber);color:#fff;border-color:rgba(245,158,11,0.5)}
+    .glass-card{background:rgba(255,255,255,0.92)}
     .nav-btn{position:relative;z-index:1}
     .nav-btn.active{color:var(--text)}
-    .nav-btn.active::after{content:"";position:absolute;inset:0;border-radius:18px;background:linear-gradient(180deg, rgba(245,158,11,0.20) 0%, rgba(255,255,255,0.98) 100%);box-shadow:0 14px 30px rgba(15,23,42,0.08);z-index:-1}
+    .nav-btn.active::after{content:"";position:absolute;inset:0;border-radius:18px;background:rgba(245,158,11,0.14);box-shadow:0 4px 16px rgba(15,23,42,0.06);z-index:-1}
+    .dashboard-scroll{-webkit-overflow-scrolling:touch;overflow-y:auto}
+    .pos-name-screen,.tagihan-list-screen{-webkit-overflow-scrolling:touch}
     @media (min-width: 560px) and (orientation: landscape), (min-width: 560px) and (max-height: 500px){
       .app-shell{width:100vw;max-width:none;height:100dvh;min-height:100dvh;margin:0;border-radius:0;border:none;box-shadow:none}
       .app-frame{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"header" "content"}
@@ -1688,6 +1690,14 @@ const getTopMenus = (orders,n=3) => {
 const Dashboard = ({orders,expenses,setExpenses,user,setScreen,target,setTarget,kasirs,mitras,menus,businessDate,sessionOpen,sessionDate,onBuka,onTutup}) => {
   const [editTarget,setEditTarget]=useState(false);
   const [tmpTarget,setTmpTarget]=useState(String(target));
+  const targetInputRef=useRef(null);
+  useEffect(()=>{
+    if(editTarget&&targetInputRef.current){
+      const formatted=String(target).replace(/\B(?=(\d{3})+(?!\d))/g,".");
+      targetInputRef.current.value=formatted;
+      setTmpTarget(String(target));
+    }
+  },[editTarget]);
   const [showExpForm,setShowExpForm]=useState(false);
   const [expDesc,setExpDesc]=useState("");
   const [expAmt,setExpAmt]=useState("");
@@ -2098,10 +2108,30 @@ const Dashboard = ({orders,expenses,setExpenses,user,setScreen,target,setTarget,
             </div>
             {editTarget?(
               <div style={{display:"flex",gap:7,alignItems:"center"}}>
-                <div style={{background:"var(--card2)",border:"1px solid var(--border)",borderRadius:8,overflow:"hidden",width:110}}>
-                  <input type="number" value={tmpTarget} onChange={e=>setTmpTarget(e.target.value)} style={{padding:"6px 10px",fontSize:14}}/>
+                <div style={{background:"var(--card2)",border:"1px solid var(--amber)",borderRadius:8,overflow:"hidden",width:130}}>
+                  <input
+                    ref={targetInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    onChange={e=>{
+                      const input=e.target;
+                      const pos=input.selectionStart;
+                      const oldVal=input.value;
+                      const dotsBeforeCursor=(oldVal.slice(0,pos).match(/\./g)||[]).length;
+                      const raw=oldVal.replace(/[^\d]/g,"");
+                      const formatted=raw.replace(/\B(?=(\d{3})+(?!\d))/g,".");
+                      input.value=formatted;
+                      setTmpTarget(raw);
+                      const newDots=(formatted.slice(0,pos).match(/\./g)||[]).length;
+                      const newPos=pos+(newDots-dotsBeforeCursor);
+                      try{input.setSelectionRange(newPos,newPos);}catch(err){}
+                    }}
+                    onKeyDown={e=>{if(e.key==="Enter"){setTarget(parseInt(tmpTarget.replace(/\./g,""))||target);setEditTarget(false);}}}
+                    style={{padding:"6px 10px",fontSize:14,fontWeight:700,textAlign:"right"}}
+                    placeholder="0"
+                  />
                 </div>
-                <button onClick={()=>{setTarget(parseInt(tmpTarget)||target);setEditTarget(false);}} style={{color:"var(--green)",fontWeight:700,fontSize:13}}>OK</button>
+                <button onClick={()=>{setTarget(parseInt(tmpTarget.replace(/\./g,""))||target);setEditTarget(false);}} style={{color:"var(--green)",fontWeight:700,fontSize:13}}>OK</button>
               </div>
             ):(
               <button onClick={()=>{setTmpTarget(String(target));setEditTarget(true);}}
@@ -2303,7 +2333,11 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
         {todayPaid.length===0?(
           <Card style={{textAlign:"center",padding:16}}><p style={{color:"var(--muted)",fontSize:13}}>Belum ada transaksi untuk sesi ini</p></Card>
         ):(
-          [...todayPaid].sort((a,b)=>(orderActualPaidAt(b)||"").localeCompare(orderActualPaidAt(a)||""))
+          [...todayPaid].sort((a,b)=>{
+            const ta=orderActualPaidAt(a)||orderCreatedAt(a)||a.id||"";
+            const tb=orderActualPaidAt(b)||orderCreatedAt(b)||b.id||"";
+            return tb.localeCompare(ta);
+          })
           .map((o,i)=>(
             <div key={o.id} onClick={()=>setDetailOrder(o)} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:11,padding:"10px 13px",marginBottom:7,cursor:"pointer"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -2611,6 +2645,7 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
   const [lunasModal,setLunasModal]=useState(false);
   const [uangLunas,setUangLunas]=useState("");
   const [successState,setSuccessState]=useState(null);
+  const [hapusModal,setHapusModal]=useState(null); // {lineKey, name}
 
   const getLineKey = item => item?.cartKey || buildItemKey(item);
   const getItemsTotal = items => items.reduce((s,i)=>s+(Number(i.price)||0)*(Number(i.qty)||0),0);
@@ -2780,6 +2815,49 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
     }
   };
 
+  const hapusItem=(lineKey)=>{
+    if(!ord) return;
+    const newItems=(ord.items||[]).filter(item=>getLineKey(item)!==lineKey);
+    if(newItems.length===0){
+      setOrders(prev=>prev.filter(o=>o.id!==sel));
+      setSel(null);
+    } else {
+      setOrders(prev=>prev.map(order=>{
+        if(order.id!==sel) return order;
+        return normalizeOrder({
+          ...order,
+          items:newItems,
+          total:getItemsTotal(newItems.filter(item=>!item.paid)),
+          lastDeviceId:user.id,
+        });
+      }));
+    }
+    setHapusModal(null);
+  };
+
+  const kurangiQty=(lineKey,currentQty,itemName)=>{
+    if(!ord) return;
+    if(currentQty<=1){
+      // Tanya dulu sebelum hapus
+      setHapusModal({lineKey,name:itemName});
+      return;
+    }
+    // Kurangi qty 1
+    setOrders(prev=>prev.map(order=>{
+      if(order.id!==sel) return order;
+      const newItems=(order.items||[]).map(item=>{
+        if(getLineKey(item)!==lineKey) return item;
+        return {...item, qty:(Number(item.qty)||1)-1};
+      });
+      return normalizeOrder({
+        ...order,
+        items:newItems,
+        total:getItemsTotal(newItems.filter(item=>!item.paid)),
+        lastDeviceId:user.id,
+      });
+    }));
+  };
+
   const konfirmasiLunas=()=>{
     if(!uangLunas||!ord||parseInt(uangLunas)<ord.total)return;
     const paidAt = localISO();
@@ -2872,10 +2950,16 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
               <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,marginLeft:8}}>
                 <p style={{color:item.paid?"var(--muted)":"var(--text)",fontWeight:700,fontSize:14}}>{rupiah(subtotal)}</p>
                 {!item.paid&&(
+                  <>
+                  <button onClick={()=>kurangiQty(lineKey,item.qty,item.name)}
+                    style={{width:30,height:30,borderRadius:8,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,fontSize:18,fontWeight:700,color:"var(--red)"}}>
+                    −
+                  </button>
                   <button onClick={()=>{setBayarItem({...item,subtotal,lineKey});setUangItem("");}}
                     style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
                     Bayar
                   </button>
+                  </>
                 )}
               </div>
             </div>);
@@ -2967,6 +3051,25 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
         )}
         <Btn v="success" onClick={bayarSatuItem} disabled={!uangItem||parseInt(uangItem)<bayarItem.subtotal} full>✓ Konfirmasi Bayar</Btn>
         <Btn v="ghost" onClick={()=>{setBayarItem(null);setUangItem("");}} full>Batal</Btn>
+      </div>
+    </div>)}
+
+    {hapusModal&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 20px"}} onClick={()=>setHapusModal(null)}>
+      <div style={{background:"var(--card)",borderRadius:18,padding:"22px 20px",width:"100%",maxWidth:340,display:"flex",flexDirection:"column",gap:16}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:42,height:42,borderRadius:12,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </div>
+          <div>
+            <p style={{fontWeight:700,color:"var(--text)",fontSize:15}}>Hapus Item?</p>
+            <p style={{color:"var(--muted)",fontSize:13,marginTop:2}}>{hapusModal.name}</p>
+          </div>
+        </div>
+        <p style={{color:"var(--muted)",fontSize:13,lineHeight:1.5}}>Qty sudah 1. Yakin hapus pesanan <strong style={{color:"var(--text)"}}>{hapusModal.name}</strong> dari tagihan ini?</p>
+        <div style={{display:"flex",gap:9}}>
+          <Btn v="ghost" onClick={()=>setHapusModal(null)} full sm>Batal</Btn>
+          <Btn v="danger" onClick={()=>hapusItem(hapusModal.lineKey)} full sm>Hapus</Btn>
+        </div>
       </div>
     </div>)}
 
