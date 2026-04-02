@@ -852,7 +852,7 @@ const CatBar = memo(({cats, active, onChange}) => (
       }}>{c}</button>
     ))}
   </div>
-);
+));
 
 const SuccessOverlay = ({message, onDone, onPrint, onBack, backLabel, kembalian, type}) => (
   <div style={{
