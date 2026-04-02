@@ -337,6 +337,11 @@ if(typeof window !== "undefined"){
 }
 const DEFAULT_FILTER_CATS = ["Semua","Kopi","Makanan"];
 const DEFAULT_MENU_CATS = ["Kopi","Makanan"];
+const PRINTER_STATUS_POLL_MS = 5000;
+const FALLBACK_REFRESH_MS = 180000;
+const REMOTE_REFRESH_DELAY_MS = 180;
+const SETTINGS_SYNC_DELAY_MS = 250;
+const ORDER_SYNC_DELAY_MS = 240;
 const getCategoryOptions = (menus, includeAll=true) => {
   const seen = new Set();
   (menus||[]).forEach(m=>{
@@ -641,12 +646,12 @@ const defaultPrinterStatus = () => ({
   printerName: "",
   printerAddress: "",
   message: isNativePrinterShell()
-    ? "Sedang menyiapkan status printer..."
-    : "Status printer Bluetooth hanya tersedia di APK Android.",
+    ? "Sedang menyiapkan printer fisik Bluetooth..."
+    : "Printer fisik Bluetooth Classic hanya aktif di APK Android.",
   checkedAt: 0,
 });
 const getPrinterBadgeMeta = status => {
-  if (!status?.nativeShell) return {label:"Browser", bg:"rgba(100,116,139,0.12)", color:"var(--muted)", dot:"#94A3B8"};
+  if (!status?.nativeShell) return {label:"Hanya APK", bg:"rgba(100,116,139,0.12)", color:"var(--muted)", dot:"#94A3B8"};
   if (status?.connected) return {label:"Printer siap", bg:"rgba(16,185,129,0.12)", color:"var(--green)", dot:"#10B981"};
   if (status?.selected && status?.paired) return {label:"Printer offline", bg:"rgba(245,158,11,0.14)", color:"var(--amber)", dot:"#F59E0B"};
   if (status?.bluetoothSupported && status?.bluetoothEnabled===false) return {label:"Bluetooth mati", bg:"rgba(239,68,68,0.12)", color:"var(--red)", dot:"#EF4444"};
@@ -681,7 +686,7 @@ const PrinterToolsCard = ({status,busy,onSelect,onRefresh,onClear}) => {
       <div style={{display:"grid",gap:8,padding:"12px 14px",borderRadius:16,background:"rgba(255,255,255,0.86)",border:"1px solid var(--border)"}}>
         <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Printer</span><strong style={{color:"var(--text)",textAlign:"right"}}>{status?.printerName || "Belum dipilih"}</strong></div>
         <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Alamat</span><span style={{color:"var(--text)",fontWeight:600,textAlign:"right"}}>{status?.printerAddress || "-"}</span></div>
-        <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Bluetooth</span><span style={{color:"var(--text)",fontWeight:700,textAlign:"right"}}>{status?.nativeShell ? (status?.bluetoothEnabled ? "Aktif" : "Tidak aktif") : "Mode browser"}</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Bluetooth</span><span style={{color:"var(--text)",fontWeight:700,textAlign:"right"}}>{status?.nativeShell ? (status?.bluetoothEnabled ? "Aktif" : "Tidak aktif") : "Tidak tersedia di browser"}</span></div>
         <div style={{display:"flex",justifyContent:"space-between",gap:12,fontSize:12}}><span style={{color:"var(--muted)"}}>Update live</span><span style={{color:"var(--text)",fontWeight:700,textAlign:"right"}}>{checkedLabel}</span></div>
         <div style={{paddingTop:4,borderTop:"1px dashed var(--border)"}}>
           <p style={{fontSize:12,color:meta.color,fontWeight:700}}>{status?.message || meta.label}</p>
@@ -729,7 +734,7 @@ const STRUK_CSS = `
   .badge-ok{border-color:#2a7d4f;color:#2a7d4f}
   .badge-open{border-color:#888;color:#555}
   .foot{font-size:9.5px;color:#555;text-align:center;word-break:break-word;margin-top:1px}
-  .feed15{display:block;height:56mm;min-height:56mm}
+  .feed10{display:block;height:14em;min-height:14em}
   @media print{
     html,body{width:58mm !important;max-width:58mm !important}
     @page{size:58mm auto;margin:0 !important}
@@ -770,7 +775,7 @@ ${(order.items||[]).map(item=>{
 <div class="tot-row"><span>TOTAL</span><span>${escapeHtml(rupiah(order.total))}</span></div>
 <div class="dl"></div>
 ${footerLines.map(line=>`<div class="foot">${escapeHtml(line)}</div>`).join("")}
-<span class="feed15"></span>
+<span class="feed10"></span>
 </body></html>`;
   if(typeof window!=="undefined"&&typeof window.__angkringanReceiptPreview==="function"){
     window.__angkringanReceiptPreview(html);
@@ -820,7 +825,7 @@ ${isPaid?`<div class="tot-sub"><span>Dibayar</span><span>${escapeHtml(rupiah(dib
 `<div class="c" style="margin:4px 0;font-size:9.5px;color:#666">Mohon segera lunasi tagihan</div>`}
 <div class="dl"></div>
 ${footerLines.map(line=>`<div class="foot">${escapeHtml(line)}</div>`).join("")}
-<span class="feed15"></span>
+<span class="feed10"></span>
 </body></html>`;
   if(typeof window!=="undefined"&&typeof window.__angkringanReceiptPreview==="function"){
     window.__angkringanReceiptPreview(html);
@@ -3831,72 +3836,93 @@ export default function AngkringanApp() {
     setNavOpen(false);
   },[screen, overlay]);
 
-  const loadFromSupabase = async () => {
-    try{
-      const [kasirRes, mitraRes, menuRes, orderRes, expenseRes, settingsRes] = await Promise.all([
-        supabase.from("kasirs").select("*"),
-        supabase.from("mitras").select("*"),
-        supabase.from("menus").select("*"),
-        supabase.from("orders").select("*"),
-        supabase.from("expenses").select("*"),
-        supabase.from("settings").select("*"),
-      ]);
+  const replaceCollectionIfChanged = useCallback((key, rows, setState, serialize=serializeSimpleRow) => {
+    const nextMap = new Map(rows.map(row=>[String(row.id), serialize(row)]));
+    const prevMap = syncedRowsRef.current[key] || new Map();
+    const isSame = nextMap.size === prevMap.size
+      && [...nextMap.entries()].every(([id, signature])=>prevMap.get(id) === signature);
 
-      if(kasirRes.data){
-        const nextKasirs = kasirRes.data.map(mapKasirRow);
-        syncedRowsRef.current.kasirs = new Map(nextKasirs.map(row=>[String(row.id), serializeSimpleRow(row)]));
-        syncedIdsRef.current.kasirs = new Set(nextKasirs.map(row=>String(row.id)));
-        setKasirs(nextKasirs);
+    syncedRowsRef.current[key] = nextMap;
+    syncedIdsRef.current[key] = new Set(nextMap.keys());
+    if(!isSame) setState(rows);
+    return nextMap;
+  },[]);
+
+  const loadFromSupabaseInFlight = useRef(null);
+  const loadFromSupabase = useCallback(async ({force=false} = {}) => {
+    if(loadFromSupabaseInFlight.current && !force) return loadFromSupabaseInFlight.current;
+
+    const requestPromise = (async () => {
+      try{
+        const [kasirRes, mitraRes, menuRes, orderRes, expenseRes, settingsRes] = await Promise.all([
+          supabase.from("kasirs").select("id,name,password").order("name", {ascending:true}),
+          supabase.from("mitras").select("id,name,pemilik").order("name", {ascending:true}),
+          supabase.from("menus").select("id,name,price,category,available,mitra_id,harga_mitra,suhu").order("name", {ascending:true}),
+          supabase.from("orders").select("id,customer_name,status,created_at,session_date,session_id,paid_at,items,total,kasir_id,updated_at,last_device_id").order("updated_at", {ascending:false}),
+          supabase.from("expenses").select("id,description,amount,date").order("date", {ascending:false}),
+          supabase.from("settings").select("key,value"),
+        ]);
+
+        if(kasirRes.error) throw kasirRes.error;
+        if(mitraRes.error) throw mitraRes.error;
+        if(menuRes.error) throw menuRes.error;
+        if(orderRes.error) throw orderRes.error;
+        if(expenseRes.error) throw expenseRes.error;
+        if(settingsRes.error) throw settingsRes.error;
+
+        if(kasirRes.data){
+          const nextKasirs = kasirRes.data.map(mapKasirRow);
+          replaceCollectionIfChanged("kasirs", nextKasirs, setKasirs);
+        }
+        if(mitraRes.data){
+          const nextMitras = mitraRes.data.map(mapMitraRow);
+          replaceCollectionIfChanged("mitras", nextMitras, setMitras);
+        }
+        if(menuRes.data){
+          const nextMenus = menuRes.data.map(mapMenuRow);
+          replaceCollectionIfChanged("menus", nextMenus, setMenus);
+        }
+        if(orderRes.data){
+          const nextOrders = orderRes.data.map(mapOrderRow);
+          const nextMap = replaceCollectionIfChanged("orders", nextOrders, setOrders, serializeOrderForSync);
+          orderSnapshot.current = new Map(nextMap);
+        }
+        if(expenseRes.data){
+          const nextExpenses = expenseRes.data.map(mapExpenseRow);
+          replaceCollectionIfChanged("expenses", nextExpenses, setExpenses);
+        }
+        if(settingsRes.data){
+          const t=settingsRes.data.find(r=>r.key==="target"); if(t) setTarget(Number(t.value));
+          const so=settingsRes.data.find(r=>r.key==="session_open"); if(so) setSessionOpen(so.value==="true");
+          const sd=settingsRes.data.find(r=>r.key==="session_date"); if(sd) setSessionDate(sd.value||null);
+          const cs=settingsRes.data.find(r=>r.key==="current_session_id"); if(cs) setCurrentSessionId(cs.value||null);
+          const op=settingsRes.data.find(r=>r.key==="owner_password"); if(op?.value) setOwnerPassword(op.value);
+          const receiptHeader=settingsRes.data.find(r=>r.key==="receipt_header")?.value;
+          const receiptFooterPaid=settingsRes.data.find(r=>r.key==="receipt_footer_paid")?.value;
+          const receiptFooterOpen=settingsRes.data.find(r=>r.key==="receipt_footer_open")?.value;
+          const nextReceiptSettings = normalizeReceiptSettings({header:receiptHeader,footerPaid:receiptFooterPaid,footerOpen:receiptFooterOpen});
+          syncedSettingsSignature.current = JSON.stringify({
+            target:Number(t?.value ?? 500000),
+            sessionOpen:so?.value === "true",
+            sessionDate:sd?.value || null,
+            currentSessionId:cs?.value || null,
+            ownerPassword:op?.value || DEFAULT_OWNER_PASSWORD,
+            receiptSettings:nextReceiptSettings,
+          });
+          setReceiptSettings(nextReceiptSettings);
+        }
+      }catch(err){
+        console.error("loadFromSupabase error", err);
+      }finally{
+        if(loadFromSupabaseInFlight.current === requestPromise){
+          loadFromSupabaseInFlight.current = null;
+        }
       }
-      if(mitraRes.data){
-        const nextMitras = mitraRes.data.map(mapMitraRow);
-        syncedRowsRef.current.mitras = new Map(nextMitras.map(row=>[String(row.id), serializeSimpleRow(row)]));
-        syncedIdsRef.current.mitras = new Set(nextMitras.map(row=>String(row.id)));
-        setMitras(nextMitras);
-      }
-      if(menuRes.data){
-        const nextMenus = menuRes.data.map(mapMenuRow);
-        syncedRowsRef.current.menus = new Map(nextMenus.map(row=>[String(row.id), serializeSimpleRow(row)]));
-        syncedIdsRef.current.menus = new Set(nextMenus.map(row=>String(row.id)));
-        setMenus(nextMenus);
-      }
-      if(orderRes.data){
-        const nextOrders = orderRes.data.map(mapOrderRow);
-        orderSnapshot.current = new Map(nextOrders.map(order=>[order.id, serializeOrderForSync(order)]));
-        syncedRowsRef.current.orders = new Map(nextOrders.map(order=>[String(order.id), serializeOrderForSync(order)]));
-        syncedIdsRef.current.orders = new Set(nextOrders.map(order=>String(order.id)));
-        setOrders(nextOrders);
-      }
-      if(expenseRes.data){
-        const nextExpenses = expenseRes.data.map(mapExpenseRow);
-        syncedRowsRef.current.expenses = new Map(nextExpenses.map(row=>[String(row.id), serializeSimpleRow(row)]));
-        syncedIdsRef.current.expenses = new Set(nextExpenses.map(row=>String(row.id)));
-        setExpenses(nextExpenses);
-      }
-      if(settingsRes.data){
-        const t=settingsRes.data.find(r=>r.key==="target"); if(t) setTarget(Number(t.value));
-        const so=settingsRes.data.find(r=>r.key==="session_open"); if(so) setSessionOpen(so.value==="true");
-        const sd=settingsRes.data.find(r=>r.key==="session_date"); if(sd) setSessionDate(sd.value||null);
-        const cs=settingsRes.data.find(r=>r.key==="current_session_id"); if(cs) setCurrentSessionId(cs.value||null);
-        const op=settingsRes.data.find(r=>r.key==="owner_password"); if(op?.value) setOwnerPassword(op.value);
-        const receiptHeader=settingsRes.data.find(r=>r.key==="receipt_header")?.value;
-        const receiptFooterPaid=settingsRes.data.find(r=>r.key==="receipt_footer_paid")?.value;
-        const receiptFooterOpen=settingsRes.data.find(r=>r.key==="receipt_footer_open")?.value;
-        const nextReceiptSettings = normalizeReceiptSettings({header:receiptHeader,footerPaid:receiptFooterPaid,footerOpen:receiptFooterOpen});
-        syncedSettingsSignature.current = JSON.stringify({
-          target:Number(t?.value ?? 500000),
-          sessionOpen:so?.value === "true",
-          sessionDate:sd?.value || null,
-          currentSessionId:cs?.value || null,
-          ownerPassword:op?.value || DEFAULT_OWNER_PASSWORD,
-          receiptSettings:nextReceiptSettings,
-        });
-        setReceiptSettings(nextReceiptSettings);
-      }
-    }catch(err){
-      console.error("loadFromSupabase error", err);
-    }
-  };
+    })();
+
+    loadFromSupabaseInFlight.current = requestPromise;
+    return requestPromise;
+  },[replaceCollectionIfChanged]);
 
   const clearResettableCache = () => {
     try{
@@ -4364,7 +4390,7 @@ export default function AngkringanApp() {
     syncPrinter();
     const interval = setInterval(()=>{
       if(typeof document === "undefined" || document.visibilityState === "visible") syncPrinter();
-    }, 8000);
+    }, PRINTER_STATUS_POLL_MS);
     const onFocus = () => syncPrinter();
     const onVisibility = () => {
       if(document.visibilityState === "visible") syncPrinter();
@@ -4490,7 +4516,7 @@ export default function AngkringanApp() {
         {key:"receipt_footer_paid",value:receiptSettings.footerPaid},
         {key:"receipt_footer_open",value:receiptSettings.footerOpen},
       ]);
-    }, 350);
+    }, SETTINGS_SYNC_DELAY_MS);
   },[target, sessionOpen, sessionDate, currentSessionId, ownerPassword, receiptSettings, scheduleSyncTask]);
 
   useEffect(()=>{
@@ -4512,26 +4538,29 @@ export default function AngkringanApp() {
     const scheduleRemoteRefresh = () => {
       scheduleSyncTask("remote-refresh", async ()=>{
         await loadFromSupabase();
-      }, 220);
+      }, REMOTE_REFRESH_DELAY_MS);
     };
 
     const applyRealtimeRow = ({key, payload, mapRow, setState, serialize=serializeSimpleRow, skipSelf=false}) => {
       if(skipSelf && payload?.new?.last_device_id === deviceId) return;
       if(payload.eventType === "DELETE"){
         const deletedId = payload.old?.id;
-        if(deletedId == null) return;
-        syncedRowsRef.current[key]?.delete(String(deletedId));
-        syncedIdsRef.current[key]?.delete(String(deletedId));
-        if(key === "orders") orderSnapshot.current.delete(deletedId);
+        const rowKey = String(deletedId);
+        if(deletedId == null || !syncedIdsRef.current[key]?.has(rowKey)) return;
+        syncedRowsRef.current[key]?.delete(rowKey);
+        syncedIdsRef.current[key]?.delete(rowKey);
+        if(key === "orders") orderSnapshot.current.delete(rowKey);
         setState(prev=>removeById(prev, deletedId));
         return;
       }
       if(!payload.new) return;
       const nextRow = mapRow(payload.new);
+      const rowKey = String(nextRow.id);
       const signature = serialize(nextRow);
-      syncedRowsRef.current[key]?.set(String(nextRow.id), signature);
-      syncedIdsRef.current[key]?.add(String(nextRow.id));
-      if(key === "orders") orderSnapshot.current.set(nextRow.id, signature);
+      if(syncedRowsRef.current[key]?.get(rowKey) === signature) return;
+      syncedRowsRef.current[key]?.set(rowKey, signature);
+      syncedIdsRef.current[key]?.add(rowKey);
+      if(key === "orders") orderSnapshot.current.set(rowKey, signature);
       setState(prev=>upsertById(prev, nextRow));
     };
 
@@ -4559,7 +4588,7 @@ export default function AngkringanApp() {
         await loadFromSupabase();
       }, 260);
     };
-    const interval = setInterval(refresh, 300000);
+    const interval = setInterval(refresh, FALLBACK_REFRESH_MS);
     const onVisible = ()=>{ if(document.visibilityState==="visible") refresh(); };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisible);
@@ -4623,7 +4652,7 @@ export default function AngkringanApp() {
       })),
       serialize:row=>row.__syncSignature,
       mapForUpsert:({__syncSignature, ...dbRow})=>dbRow,
-    }), 400);
+    }), ORDER_SYNC_DELAY_MS);
   },[orders, currentSessionId, deviceId, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
@@ -4654,7 +4683,7 @@ export default function AngkringanApp() {
   );
   const headerRight = (
     <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
-      <PrinterStatusBadge status={printerStatus} busy={!!printerBusy} onClick={()=>setOverlay(user.role==="owner"?"data":"printer")}/>
+      {printerStatus?.nativeShell && <PrinterStatusBadge status={printerStatus} busy={!!printerBusy} onClick={()=>setOverlay(user.role==="owner"?"data":"printer")}/>}
       {isHome ? (
         <button onClick={()=>setUser(null)} style={{color:"var(--muted)",display:"flex",padding:8,borderRadius:12,background:"rgba(255,255,255,0.68)",border:"1px solid var(--border)",flexShrink:0}}>
           <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9"/></svg>
