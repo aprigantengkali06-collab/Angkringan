@@ -1,10 +1,10 @@
 "use client";
 import { supabase } from "../lib/supabase";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
-const FontStyle = () => (
+const FontStyle = memo(() => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Sora:wght@400;600;700;800&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
@@ -79,7 +79,7 @@ const FontStyle = () => (
       .menu-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
     }
   `}</style>
-);
+));
 
 // ── Helpers ──
 const seedToday = new Date();
@@ -370,75 +370,9 @@ const getMonths = (dates) => {
 // ── Initial Data ──
 const MENUS0 = [];
 
-const makeHistorical = () => {
-  const days = [
-    {daysAgo:6,amt:285000,kid:"k1",items:[{menuId:1,name:"Kopi Tubruk",price:5000,qty:12},{menuId:10,name:"Teh Manis",price:4000,qty:8},{menuId:6,name:"Mojito Virgin",price:15000,qty:7}]},
-    {daysAgo:5,amt:420000,kid:"k2",items:[{menuId:3,name:"Es Kopi Susu",price:10000,qty:14},{menuId:7,name:"Lemon Mint",price:12000,qty:9},{menuId:2,name:"Kopi Susu",price:8000,qty:8}]},
-    {daysAgo:4,amt:310000,kid:"k1",items:[{menuId:1,name:"Kopi Tubruk",price:5000,qty:10},{menuId:6,name:"Mojito Virgin",price:15000,qty:6},{menuId:11,name:"Es Jeruk",price:6000,qty:9}]},
-    {daysAgo:3,amt:550000,kid:"k2",items:[{menuId:3,name:"Es Kopi Susu",price:10000,qty:18},{menuId:8,name:"Blue Ocean",price:18000,qty:8},{menuId:2,name:"Kopi Susu",price:8000,qty:10}]},
-    {daysAgo:2,amt:395000,kid:"k1",items:[{menuId:2,name:"Kopi Susu",price:8000,qty:13},{menuId:9,name:"Sunrise Mix",price:16000,qty:7},{menuId:10,name:"Teh Manis",price:4000,qty:10}]},
-    {daysAgo:1,amt:480000,kid:"k2",items:[{menuId:3,name:"Es Kopi Susu",price:10000,qty:16},{menuId:6,name:"Mojito Virgin",price:15000,qty:9},{menuId:4,name:"Americano",price:12000,qty:7}]},
-  ];
-  return days.map(({daysAgo,amt,kid,items},i) => {
-    const d=new Date(seedToday); d.setDate(d.getDate()-daysAgo);
-    const ds=fmt(d);
-    return [{id:`HIST${i}A`,customerName:"Pelanggan A",status:"paid",createdAt:ds,paidAt:ds,items:items.slice(0,2),total:Math.floor(amt*0.6),kasirId:kid},
-            {id:`HIST${i}B`,customerName:"Pelanggan B",status:"paid",createdAt:ds,paidAt:ds,items:items.slice(1),total:Math.floor(amt*0.4),kasirId:kid}];
-  }).flat();
-};
+const ORDERS0 = [];
 
-const makePrevMonth = () => {
-  const base = new Date(seedToday.getFullYear(), seedToday.getMonth()-1, 1);
-  return [10,15,20,25].map((day,i) => {
-    const d = new Date(base.getFullYear(), base.getMonth(), day);
-    const ds = fmt(d);
-    const kids = ["k1","k2"];
-    return [{id:`PM${i}A`,customerName:"Tamu",status:"paid",createdAt:ds,paidAt:ds,
-       items:[{menuId:3,name:"Es Kopi Susu",price:10000,qty:8+i},{menuId:6,name:"Mojito Virgin",price:15000,qty:5}],
-       total:(8+i)*10000+75000,kasirId:kids[i%2]},
-     {id:`PM${i}B`,customerName:"Langganan",status:"paid",createdAt:ds,paidAt:ds,
-       items:[{menuId:1,name:"Kopi Tubruk",price:5000,qty:10},{menuId:2,name:"Kopi Susu",price:8000,qty:6}],
-       total:98000,kasirId:kids[(i+1)%2]}];
-  }).flat();
-};
-
-const ORDERS0 = [
-  ...makeHistorical(), ...makePrevMonth(),
-  {id:"ORD001",customerName:"Budi",status:"open",createdAt:todayStr,paidAt:null,
-   items:[{menuId:1,name:"Kopi Tubruk",price:5000,qty:2},{menuId:10,name:"Teh Manis",price:4000,qty:1}],total:14000,kasirId:"k1"},
-  {id:"ORD002",customerName:"Sari",status:"open",createdAt:todayStr,paidAt:null,
-   items:[{menuId:6,name:"Mojito Virgin",price:15000,qty:1}],total:15000,kasirId:"k2"},
-  {id:"ORD003",customerName:"Dani",status:"paid",createdAt:todayStr,paidAt:todayStr,
-   items:[{menuId:3,name:"Es Kopi Susu",price:10000,qty:2},{menuId:6,name:"Mojito Virgin",price:15000,qty:1}],total:35000,kasirId:"k1"},
-  {id:"ORD004",customerName:"Rina",status:"paid",createdAt:todayStr,paidAt:todayStr,
-   items:[{menuId:2,name:"Kopi Susu",price:8000,qty:2},{menuId:11,name:"Es Jeruk",price:6000,qty:1}],total:22000,kasirId:"k2"},
-  {id:"ORD005",customerName:"Tono",status:"paid",createdAt:todayStr,paidAt:todayStr,
-   items:[{menuId:3,name:"Es Kopi Susu",price:10000,qty:1},{menuId:8,name:"Blue Ocean",price:18000,qty:1}],total:28000,kasirId:"k2"},
-];
-
-const makeAllExps = () => {
-  const hist = [
-    [{desc:"Biji kopi robusta",amt:70000},{desc:"Gula & susu",amt:35000}],
-    [{desc:"Es batu & sirup",amt:45000}],
-    [{desc:"Kopi & gula pasir",amt:80000},{desc:"Sedotan & cup",amt:20000}],
-    [{desc:"Susu kental manis",amt:40000}],
-    [{desc:"Biji kopi arabika",amt:90000},{desc:"Gula aren",amt:25000}],
-    [{desc:"Es batu & lemon",amt:38000},{desc:"Kopi robusta",amt:65000}],
-  ].map((day,i) => {
-    const d=new Date(seedToday); d.setDate(d.getDate()-(6-i));
-    return day.map((e,j)=>({id:`HEXP${i}${j}`,description:e.desc,amount:e.amt,date:fmt(d)}));
-  }).flat();
-  const prevBase = new Date(seedToday.getFullYear(), seedToday.getMonth()-1, 1);
-  const prev = [10,15,20,25].map((day,i) => {
-    const d = new Date(prevBase.getFullYear(), prevBase.getMonth(), day);
-    return [{id:`PEXP${i}A`,description:"Beli bahan harian",amount:60000+i*5000,date:fmt(d)}];
-  }).flat();
-  return [...hist, ...prev,
-    {id:"EXP001",description:"Beli biji kopi & gula",amount:85000,date:todayStr},
-    {id:"EXP002",description:"Es batu & susu kental",amount:40000,date:todayStr},
-  ];
-};
-const EXPS0 = makeAllExps();
+const EXPS0 = [];
 
 // ── PDF ──
 
@@ -718,7 +652,7 @@ const getPrinterBadgeMeta = status => {
   if (status?.bluetoothSupported && status?.bluetoothEnabled===false) return {label:"Bluetooth mati", bg:"rgba(239,68,68,0.12)", color:"var(--red)", dot:"#EF4444"};
   return {label:"Belum pilih", bg:"rgba(37,99,235,0.10)", color:"var(--blue)", dot:"#2563EB"};
 };
-const PrinterStatusBadge = ({status,busy,onClick}) => {
+const PrinterStatusBadge = memo(({status,busy,onClick}) => {
   const meta = getPrinterBadgeMeta(status || defaultPrinterStatus());
   return (
     <button onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:12,background:meta.bg,border:`1px solid ${meta.dot}22`,color:meta.color,fontWeight:800,fontSize:12,flexShrink:0,maxWidth:148}}>
@@ -726,7 +660,7 @@ const PrinterStatusBadge = ({status,busy,onClick}) => {
       <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{busy?"Memeriksa...":meta.label}</span>
     </button>
   );
-};
+});
 const PrinterToolsCard = ({status,busy,onSelect,onRefresh,onClear}) => {
   const meta = getPrinterBadgeMeta(status || defaultPrinterStatus());
   const checkedLabel = status?.checkedAt
@@ -773,7 +707,7 @@ const STRUK_CSS = `
   html{width:58mm;max-width:58mm}
   body{font-family:'Courier New',Courier,monospace;font-size:10.5px;line-height:1.4;
     width:58mm;max-width:58mm;min-width:58mm;
-    padding:2.5mm 2.5mm 12mm 2.5mm;color:#000;background:#fff;
+    padding:2.5mm 2.5mm 2.5mm 2.5mm;color:#000;background:#fff;
     word-wrap:break-word;overflow-wrap:break-word}
   .c{text-align:center}
   .r{text-align:right}
@@ -795,6 +729,7 @@ const STRUK_CSS = `
   .badge-ok{border-color:#2a7d4f;color:#2a7d4f}
   .badge-open{border-color:#888;color:#555}
   .foot{font-size:9.5px;color:#555;text-align:center;word-break:break-word;margin-top:1px}
+  .feed15{display:block;height:56mm;min-height:56mm}
   @media print{
     html,body{width:58mm !important;max-width:58mm !important}
     @page{size:58mm auto;margin:0 !important}
@@ -835,7 +770,12 @@ ${(order.items||[]).map(item=>{
 <div class="tot-row"><span>TOTAL</span><span>${escapeHtml(rupiah(order.total))}</span></div>
 <div class="dl"></div>
 ${footerLines.map(line=>`<div class="foot">${escapeHtml(line)}</div>`).join("")}
+<span class="feed15"></span>
 </body></html>`;
+  if(typeof window!=="undefined"&&typeof window.__angkringanReceiptPreview==="function"){
+    window.__angkringanReceiptPreview(html);
+    return;
+  }
   const w=window.open("","_blank","width=340,height=600");
   if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close();},400);}
 };
@@ -880,21 +820,26 @@ ${isPaid?`<div class="tot-sub"><span>Dibayar</span><span>${escapeHtml(rupiah(dib
 `<div class="c" style="margin:4px 0;font-size:9.5px;color:#666">Mohon segera lunasi tagihan</div>`}
 <div class="dl"></div>
 ${footerLines.map(line=>`<div class="foot">${escapeHtml(line)}</div>`).join("")}
+<span class="feed15"></span>
 </body></html>`;
+  if(typeof window!=="undefined"&&typeof window.__angkringanReceiptPreview==="function"){
+    window.__angkringanReceiptPreview(html);
+    return;
+  }
   const w=window.open("","_blank","width=340,height=600");
   if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close();},400);}
 };
 
 // ── UI Atoms ──
-const Card = ({children,style={},className=""}) => (
+const Card = memo(({children,style={},className=""}) => (
   <div className={className} style={{
     background:"linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)",
     border:"1px solid rgba(215,226,240,0.95)",borderRadius:20,padding:16,
     boxShadow:"0 14px 34px rgba(15,23,42,0.06)",
     ...style
   }}>{children}</div>
-);
-const CatBar = ({cats, active, onChange}) => (
+));
+const CatBar = memo(({cats, active, onChange}) => (
   <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6,scrollbarWidth:"none"}}>
     {(cats||[]).map(c=>(
       <button key={c} onClick={()=>onChange(c)} style={{
@@ -967,7 +912,7 @@ const SuccessOverlay = ({message, onDone, onPrint, onBack, backLabel, kembalian,
   </div>
 );
 
-const KasirChip = ({kasirId, kasirs}) => {
+const KasirChip = memo(({kasirId, kasirs}) => {
   const k = (kasirs||[]).find(k=>k.id===kasirId);
   if(!k) return null;
   const idx = (kasirs||[]).indexOf(k);
@@ -984,9 +929,9 @@ const KasirChip = ({kasirId, kasirs}) => {
       {k.name}
     </span>
   );
-};
+});
 
-const Btn = ({children,onClick,v="primary",sm,disabled,full,style={}}) => {
+const Btn = memo(({children,onClick,v="primary",sm,disabled,full,style={}}) => {
   const vs={
     primary:{background:"linear-gradient(135deg,var(--amber) 0%, #F97316 100%)",color:"#fff",boxShadow:"0 14px 28px rgba(245,158,11,0.26)"},
     ghost:{background:"rgba(255,255,255,0.78)",color:"var(--text)",border:"1px solid var(--border)",boxShadow:"0 8px 18px rgba(15,23,42,0.04)"},
@@ -1002,7 +947,7 @@ const Btn = ({children,onClick,v="primary",sm,disabled,full,style={}}) => {
     cursor:disabled?"not-allowed":"pointer",width:full?"100%":undefined,
     letterSpacing:"-0.01em",...style
   }}>{children}</button>;
-};
+});
 // Helper: format angka dengan titik ribuan untuk display
 const formatThousands = v => v ? Number(String(v).replace(/\D/g,'')||0).toLocaleString('id-ID') : '';
 // Helper: parse angka dari string berformat (hapus semua non-digit)
@@ -1045,7 +990,7 @@ const MoneyInput = ({label, value, onChange, total=0}) => {
   );
 };
 
-const BackBtn = ({onClick}) => (
+const BackBtn = memo(({onClick}) => (
   <button onClick={onClick} style={{color:"var(--amber)",display:"flex",alignItems:"center",gap:6,
     fontSize:13,fontWeight:600,background:"none",border:"none",marginBottom:14}}>
     <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
@@ -1053,8 +998,8 @@ const BackBtn = ({onClick}) => (
     </svg>
     Kembali
   </button>
-);
-const PaymentMeta = ({order}) => {
+));
+const PaymentMeta = memo(({order}) => {
   const actualPaidAt = orderActualPaidAt(order);
   const actualLabel = fmtTanggalWaktu(actualPaidAt);
   const reportDate = orderSessionDate(order);
@@ -1066,12 +1011,12 @@ const PaymentMeta = ({order}) => {
       )}
     </>
   );
-};
+});
 
 // ── Keuangan Sub-Views ──
 
 // Level 1: Pilih Bulan
-const MonthList = ({months, onSelect, getMonthSummary}) => (
+const MonthList = memo(({months, onSelect, getMonthSummary}) => (
   <div style={{display:"flex",flexDirection:"column",gap:9}}>
     {months.map((m,i)=>{
       const {pemasukan,totalKeluar,kas} = getMonthSummary(m.key);
@@ -1109,7 +1054,7 @@ const MonthList = ({months, onSelect, getMonthSummary}) => (
       );
     })}
   </div>
-);
+));
 
 // Level 2: Pilih Hari dalam Bulan
 const DayList = ({month, days, tab, onSelect, getDaySummary, businessDate}) => (
@@ -1513,7 +1458,7 @@ const Keuangan = ({orders, expenses, setExpenses, kasirs, menus, businessDate, r
 };
 
 // ── Login ──
-const Login = ({onLogin, kasirs, ownerPassword}) => {
+const Login = memo(({onLogin, kasirs, ownerPassword}) => {
   const [role,setRole]=useState(null);
   const [selKasir,setSelKasir]=useState(null);
   const [pw,setPw]=useState("");
@@ -1589,7 +1534,7 @@ const Login = ({onLogin, kasirs, ownerPassword}) => {
       </div>
     </div>
   );
-};
+});
 
 // ── Nav ──
 const NAV_OWNER_ITEMS=[
@@ -1605,7 +1550,7 @@ const NAV_KASIR_ITEMS=[
 ];
 const getNavItems = role => role==="owner" ? NAV_OWNER_ITEMS : NAV_KASIR_ITEMS;
 
-const Nav = ({screen,set,role}) => {
+const Nav = memo(({screen,set,role}) => {
   const items = getNavItems(role);
   return(
     <div className="nav-shell" style={{position:"sticky",bottom:0,background:"rgba(255,255,255,0.78)",backdropFilter:"blur(20px)",
@@ -1629,7 +1574,7 @@ const Nav = ({screen,set,role}) => {
       })}
     </div>
   );
-};
+});
 
 const MenuDrawer = ({open,onClose,items,screen,onNavigate,isOwner,onOpenTim,onOpenMenu,onOpenData,onOpenPrinter,onLogout}) => {
   if(!open) return null;
@@ -1686,7 +1631,7 @@ const MenuDrawer = ({open,onClose,items,screen,onNavigate,isOwner,onOpenTim,onOp
 };
 
 // ── Header ──
-const Hdr = ({title,sub,left,right}) => (
+const Hdr = memo(({title,sub,left,right}) => (
   <div className="hdr-shell glass-card" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
     borderBottom:"1px solid rgba(215,226,240,0.92)",flexShrink:0,boxShadow:"0 8px 26px rgba(15,23,42,0.05)",minHeight:68}}>
     <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0,flex:1}}>
@@ -1698,15 +1643,15 @@ const Hdr = ({title,sub,left,right}) => (
     </div>
     {right}
   </div>
-);
+));
 
-const ChartTooltip = ({active,payload,label}) => {
+const ChartTooltip = memo(({active,payload,label}) => {
   if(!active||!payload?.length)return null;
   return(<div style={{background:"var(--card2)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 12px"}}>
     <p style={{color:"var(--muted)",fontSize:11,marginBottom:3}}>{label}</p>
     <p className="sora" style={{color:"var(--amber)",fontWeight:700,fontSize:14}}>{rupiah(payload[0].value)}</p>
   </div>);
-};
+});
 
 const getTopMenus = (orders,n=3) => {
   const freq={};orders.forEach(o=>o.items.forEach(i=>{freq[i.name]=(freq[i.name]||0)+i.qty;}));
@@ -3717,6 +3662,87 @@ const DataTools = ({busy,onClose,onBackup,onRestore,onReset,receiptSettings,onSa
   );
 };
 
+
+// ── ReceiptPreviewModal — Preview struk in-app sebelum cetak ──────────────
+const ReceiptPreviewModal = memo(({html, onClose}) => {
+  const iframeRef = useRef(null);
+  useEffect(()=>{
+    const iframe = iframeRef.current;
+    if(!iframe || !html) return;
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if(!doc) return;
+    doc.open();
+    doc.write(html);
+    doc.close();
+  },[html]);
+
+  const handlePrint = () => {
+    const iframe = iframeRef.current;
+    if(!iframe) return;
+    const win = iframe.contentWindow;
+    if(win){
+      win.focus();
+      win.print();
+    }
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:11000,background:"rgba(15,23,42,0.72)",backdropFilter:"blur(6px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}} onClick={onClose}>
+      <div className="fu" style={{width:"100%",maxWidth:480,background:"#fff",borderRadius:"22px 22px 0 0",display:"flex",flexDirection:"column",maxHeight:"92vh",boxShadow:"0 -8px 48px rgba(15,23,42,0.22)"}} onClick={e=>e.stopPropagation()}>
+        {/* Handle bar */}
+        <div style={{display:"flex",justifyContent:"center",padding:"12px 0 0",flexShrink:0}}>
+          <div style={{width:44,height:4,borderRadius:99,background:"#D1D5DB"}}/>
+        </div>
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px 10px",flexShrink:0,borderBottom:"1px solid var(--border)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:36,height:36,borderRadius:11,background:"rgba(254,243,199,0.9)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🧾</div>
+            <div>
+              <p style={{fontWeight:800,fontSize:15,color:"var(--text)"}}>Preview Struk</p>
+              <p style={{fontSize:11,color:"var(--muted)",marginTop:1}}>Tampilan sebelum dicetak ke printer</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{width:36,height:36,borderRadius:10,border:"1px solid var(--border)",background:"rgba(255,255,255,0.9)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)"}}>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        {/* Iframe preview */}
+        <div style={{flex:1,overflowY:"auto",padding:"14px 0",display:"flex",justifyContent:"center",background:"#F0F5FF",minHeight:0}}>
+          <div style={{background:"#fff",boxShadow:"0 2px 16px rgba(15,23,42,0.10)",borderRadius:4,overflow:"hidden",width:220,flexShrink:0}}>
+            <iframe
+              ref={iframeRef}
+              title="Preview Struk"
+              style={{width:"100%",minHeight:320,height:"auto",border:"none",display:"block"}}
+              scrolling="no"
+            />
+          </div>
+        </div>
+        {/* Action buttons */}
+        <div style={{padding:"12px 20px calc(env(safe-area-inset-bottom) + 20px)",display:"flex",gap:10,flexShrink:0,borderTop:"1px solid var(--border)",background:"#fff"}}>
+          <button onClick={handlePrint} style={{
+            flex:1,padding:"13px",borderRadius:14,border:"none",cursor:"pointer",
+            background:"linear-gradient(135deg,var(--amber) 0%,#F97316 100%)",
+            color:"#fff",fontWeight:800,fontSize:14,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+            boxShadow:"0 6px 18px rgba(245,158,11,0.28)"
+          }}>
+            <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 9V2h12v7 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z"/>
+            </svg>
+            Cetak Sekarang
+          </button>
+          <button onClick={onClose} style={{
+            flex:1,padding:"13px",borderRadius:14,border:"1px solid var(--border)",cursor:"pointer",
+            background:"rgba(255,255,255,0.9)",color:"var(--muted)",fontWeight:600,fontSize:14
+          }}>
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 // ── APP ──
 export default function AngkringanApp() {
   const [user,setUser]=useState(()=>{try{const s=localStorage.getItem("user");return s?JSON.parse(s):null;}catch{return null;}});
@@ -3743,6 +3769,7 @@ export default function AngkringanApp() {
   const [tutupBlockModal, setTutupBlockModal] = useState(null);
   const [detailOrder, setDetailOrder] = useState(null);
   const [alertModal, setAlertModal] = useState(null); // {msg, type}
+  const [receiptPreviewModal, setReceiptPreviewModal] = useState(null); // {html}
   const showAlert = (msg, type="info") => setAlertModal({msg, type});
   // POS persistent state — tidak reset saat navigasi ke dashboard/tagihan
   const [posStep, setPosStep] = useState("name");
@@ -3750,7 +3777,11 @@ export default function AngkringanApp() {
   const [posCart, setPosCart] = useState([]);
   useEffect(()=>{
     window.__angkringanAlert = showAlert;
-    return ()=>{ delete window.__angkringanAlert; };
+    window.__angkringanReceiptPreview = (html) => setReceiptPreviewModal({html});
+    return ()=>{
+      delete window.__angkringanAlert;
+      delete window.__angkringanReceiptPreview;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
   const [deviceId] = useState(()=>{
@@ -3879,34 +3910,38 @@ export default function AngkringanApp() {
     }catch{}
   };
 
-  const fetchIds = async table => {
+  const fetchIds = useCallback(async table => {
     const { data, error } = await supabase.from(table).select("id");
     if(error) throw error;
     return (data || []).map(row=>row.id).filter(Boolean);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
 
-  const deleteRowsByIds = async (table, ids) => {
+  const deleteRowsByIds = useCallback(async (table, ids) => {
     const chunkSize = 100;
     for(let i=0; i<ids.length; i+=chunkSize){
       const chunk = ids.slice(i, i+chunkSize);
       const { error } = await supabase.from(table).delete().in("id", chunk);
       if(error) throw error;
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
 
-  const clearTable = async table => {
+  const clearTable = useCallback(async table => {
     const ids = await fetchIds(table);
     if(ids.length) await deleteRowsByIds(table, ids);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[fetchIds, deleteRowsByIds]);
 
-  const upsertMany = async (table, rows) => {
+  const upsertMany = useCallback(async (table, rows) => {
     const chunkSize = 100;
     for(let i=0; i<rows.length; i+=chunkSize){
       const chunk = rows.slice(i, i+chunkSize);
       const { error } = await supabase.from(table).upsert(chunk);
       if(error) throw error;
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
 
   const scheduleSyncTask = useCallback((key, task, delay=250) => {
     if(syncTimers.current[key]) clearTimeout(syncTimers.current[key]);
@@ -4455,7 +4490,7 @@ export default function AngkringanApp() {
         {key:"receipt_footer_paid",value:receiptSettings.footerPaid},
         {key:"receipt_footer_open",value:receiptSettings.footerOpen},
       ]);
-    }, 180);
+    }, 350);
   },[target, sessionOpen, sessionDate, currentSessionId, ownerPassword, receiptSettings, scheduleSyncTask]);
 
   useEffect(()=>{
@@ -4524,7 +4559,7 @@ export default function AngkringanApp() {
         await loadFromSupabase();
       }, 260);
     };
-    const interval = setInterval(refresh, 120000);
+    const interval = setInterval(refresh, 300000);
     const onVisible = ()=>{ if(document.visibilityState==="visible") refresh(); };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisible);
@@ -4550,7 +4585,7 @@ export default function AngkringanApp() {
       table:"kasirs",
       rows:kasirs.map(k=>({id:k.id,name:k.name,password:k.password})),
       serialize:serializeSimpleRow,
-    }), 160);
+    }), 250);
   },[kasirs, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
@@ -4561,7 +4596,7 @@ export default function AngkringanApp() {
       table:"mitras",
       rows:mitras.map(m=>({id:m.id,name:m.name,pemilik:m.pemilik})),
       serialize:serializeSimpleRow,
-    }), 160);
+    }), 250);
   },[mitras, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
@@ -4572,7 +4607,7 @@ export default function AngkringanApp() {
       table:"menus",
       rows:menus.map(m=>({id:m.id,name:m.name,price:m.price,category:m.category,available:m.available,mitra_id:m.mitraId||null,harga_mitra:m.hargaMitra||null,suhu:m.suhu||null})),
       serialize:serializeSimpleRow,
-    }), 160);
+    }), 250);
   },[menus, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
@@ -4588,7 +4623,7 @@ export default function AngkringanApp() {
       })),
       serialize:row=>row.__syncSignature,
       mapForUpsert:({__syncSignature, ...dbRow})=>dbRow,
-    }), 140);
+    }), 400);
   },[orders, currentSessionId, deviceId, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
@@ -4599,7 +4634,7 @@ export default function AngkringanApp() {
       table:"expenses",
       rows:expenses.map(e=>({id:e.id,description:e.description,amount:e.amount,date:e.date})),
       serialize:serializeSimpleRow,
-    }), 160);
+    }), 250);
   },[expenses, scheduleSyncTask, syncCollectionState]);
 
   if(!user)return(<><FontStyle/><div className="app-shell"><Login onLogin={u=>{setUser(u);setScreen("home");}} kasirs={kasirs} ownerPassword={ownerPassword}/></div></>);
@@ -4641,6 +4676,7 @@ export default function AngkringanApp() {
       {overlay==="data"&&<DataTools busy={dataBusy} onClose={()=>!dataBusy&&setOverlay(null)} onBackup={handleBackupDownload} onRestore={handleRestoreBackup} onReset={handleResetRingan} receiptSettings={receiptSettings} onSaveReceiptSettings={next=>{setReceiptSettings(normalizeReceiptSettings(next)); showAlert("Teks struk berhasil disimpan.","success");}} printerStatus={printerStatus} printerBusy={printerBusy} onPrinterSelect={handlePrinterSelect} onPrinterRefresh={handlePrinterRefresh} onPrinterClear={handlePrinterClear}/>}
       {overlay==="printer"&&<PrinterPickerOverlay printerStatus={printerStatus} printerBusy={printerBusy} onSelect={handlePrinterSelect} onRefresh={handlePrinterRefresh} onClear={handlePrinterClear} onClose={()=>setOverlay(null)}/>}
 
+      {receiptPreviewModal&&<ReceiptPreviewModal html={receiptPreviewModal.html} onClose={()=>setReceiptPreviewModal(null)}/>}
       {/* ── Alert Modal (pengganti window.alert) ── */}
       {alertModal&&(
         <div onClick={()=>setAlertModal(null)} style={{position:"fixed",inset:0,zIndex:10000,background:"rgba(15,23,42,0.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)"}}>
