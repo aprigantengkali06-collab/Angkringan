@@ -2155,19 +2155,57 @@ const Dashboard = ({orders,expenses,setExpenses,user,setScreen,target,setTarget,
           <div style={{marginTop:14}}>
             <p style={{fontSize:12,color:"var(--muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:9}}>
               Belum Bayar ({openOrders.length})</p>
-            {openOrders.map(o=>(
-              <div key={o.id} onClick={()=>setScreen("tagihan")} style={{background:"var(--card)",border:"1px solid var(--border)",
-                borderRadius:12,padding:"11px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",cursor:"pointer",alignItems:"center"}}>
-                <div>
-                  <p style={{color:"var(--text)",fontWeight:600}}>{o.customerName}</p>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
-                    <p style={{color:"var(--muted)",fontSize:12}}>{o.items.length} item</p>
+            {openOrders.map(o=>{
+              const totalQty = o.items.reduce((sum,item)=>sum+(Number(item.qty)||0),0);
+              const visibleItems = o.items.slice(0,3);
+              const overflowItems = o.items.length - visibleItems.length;
+              return (
+                <div
+                  key={o.id}
+                  className="tagihan-card"
+                  onClick={()=>setScreen("tagihan")}
+                  style={{
+                    background:"var(--card)",
+                    border:"1px solid var(--border)",
+                    borderRadius:13,
+                    padding:"13px 15px",
+                    marginBottom:9,
+                    cursor:"pointer",
+                    boxShadow:"0 2px 8px rgba(15,23,42,0.05)"
+                  }}
+                >
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:10}}>
+                    <p style={{color:"var(--text)",fontWeight:700,fontSize:15,fontFamily:"'Sora',sans-serif",flex:1,lineHeight:1.3}}>{o.customerName}</p>
+                    <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                      <p className="sora" style={{color:"var(--amber)",fontWeight:800,fontSize:14}}>{rupiah(o.total)}</p>
+                      <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 18l6-6-6-6"/>
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div style={{height:1,background:"var(--bg2)",marginBottom:7}}/>
+
+                  {visibleItems.map((item,idx)=>(
+                    <div key={`${o.id}-${idx}`} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"2.5px 0",gap:10}}>
+                      <p style={{color:"var(--muted)",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"80%",lineHeight:1.4}}>
+                        {item.name}{item.note?` · ${item.note}`:""}
+                      </p>
+                      <span style={{color:"var(--text)",fontSize:12,fontWeight:700,flexShrink:0}}>×{item.qty}</span>
+                    </div>
+                  ))}
+
+                  {overflowItems>0&&(
+                    <p style={{color:"var(--amber)",fontSize:11,fontWeight:600,marginTop:3}}>··· +{overflowItems} item lainnya</p>
+                  )}
+
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginTop:9,flexWrap:"wrap"}}>
                     <KasirChip kasirId={o.kasirId} kasirs={kasirs}/>
+                    <span style={{color:"var(--muted)",fontSize:11}}>{totalQty} item</span>
                   </div>
                 </div>
-                <p style={{color:"var(--amber)",fontWeight:700}}>{rupiah(o.total)}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </>)}
