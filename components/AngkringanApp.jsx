@@ -2623,6 +2623,9 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
   const [uangLunas,setUangLunas]=useState("");
   const [successState,setSuccessState]=useState(null);
   const [hapusModal,setHapusModal]=useState(null); // {lineKey, name}
+  const [expandedItems,setExpandedItems]=useState({});
+  const toggleExpandItem=key=>setExpandedItems(prev=>({...prev,[key]:!prev[key]}));
+  const [viewMode,setViewMode]=useState("list"); // "list" | "grid"
 
   const getLineKey = item => item?.cartKey || buildItemKey(item);
   const getItemsTotal = items => items.reduce((s,i)=>s+(Number(i.price)||0)*(Number(i.qty)||0),0);
@@ -2918,7 +2921,7 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
               opacity:item.paid?0.45:1}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                  <p style={{color:"var(--text)",fontWeight:500,fontSize:14}}>{item.name}</p>
+                  {(()=>{const isLong=item.name.length>22;const exp=!!expandedItems[lineKey];return(<p onClick={()=>isLong&&toggleExpandItem(lineKey)} style={{color:"var(--text)",fontWeight:500,fontSize:14,lineHeight:1.4,overflow:exp?"visible":"hidden",display:exp?"block":"-webkit-box",WebkitLineClamp:exp?undefined:1,WebkitBoxOrient:"vertical",cursor:isLong?"pointer":"default",wordBreak:"break-word"}}>{item.name}{isLong&&<span style={{color:"var(--amber)",fontSize:11,fontWeight:700,marginLeft:4}}>{exp?"▲":"▼"}</span>}</p>);})()} 
                   {item.paid&&<span style={{background:"var(--green-dim)",color:"var(--green)",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:99}}>✓ Dibayar</span>}
                 </div>
                 {item.note&&<p style={{color:"var(--blue)",fontSize:11,marginTop:2}}>📝 {item.note}</p>}
@@ -3074,32 +3077,111 @@ const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSession
   </div>);
 
   return(<div className="tagihan-list-screen" style={{flex:1,overflowY:"auto",padding:"17px"}}>
-    <div className="fu" style={{marginBottom:12}}>
-      <h2 className="sora" style={{fontSize:20,fontWeight:800,color:"var(--text)"}}>Tagihan Terbuka</h2>
-      <p style={{color:"var(--muted)",fontSize:13,marginTop:3}}>{openOrders.length} pelanggan sesi ini · <span style={{color:"var(--amber)",fontWeight:700}}>{rupiah(openOrders.reduce((s,o)=>s+o.total,0))}</span> potensi masuk</p>
+
+    {/* Header: judul + toggle list/grid */}
+    <div className="fu" style={{marginBottom:12,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+      <div>
+        <h2 className="sora" style={{fontSize:20,fontWeight:800,color:"var(--text)"}}>Tagihan Terbuka</h2>
+        <p style={{color:"var(--muted)",fontSize:13,marginTop:3}}>{openOrders.length} pelanggan sesi ini · <span style={{color:"var(--amber)",fontWeight:700}}>{rupiah(openOrders.reduce((s,o)=>s+o.total,0))}</span> potensi masuk</p>
+      </div>
+      <div style={{display:"flex",background:"var(--bg2)",borderRadius:10,padding:3,gap:2,flexShrink:0,marginTop:2}}>
+        <button onClick={()=>setViewMode("list")} style={{width:34,height:34,borderRadius:8,background:viewMode==="list"?"var(--card)":"transparent",border:"none",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:viewMode==="list"?"0 2px 6px rgba(15,23,42,0.1)":"none",transition:"all 0.15s"}}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={viewMode==="list"?"var(--amber)":"var(--muted)"} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </button>
+        <button onClick={()=>setViewMode("grid")} style={{width:34,height:34,borderRadius:8,background:viewMode==="grid"?"var(--card)":"transparent",border:"none",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:viewMode==="grid"?"0 2px 6px rgba(15,23,42,0.1)":"none",transition:"all 0.15s"}}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={viewMode==="grid"?"var(--amber)":"var(--muted)"} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+          </svg>
+        </button>
+      </div>
     </div>
+
     {carryOverOrders.length>0&&(
       <Card style={{marginBottom:12,background:"rgba(212,130,10,0.08)",border:"1px solid rgba(212,130,10,0.2)"}}>
         <p style={{color:"var(--amber)",fontWeight:700,fontSize:13,marginBottom:6}}>⚠ Ada {carryOverOrders.length} tagihan lintas sesi</p>
         <p style={{color:"var(--text)",fontSize:13,lineHeight:1.5}}>Order terbuka dari sesi lama tidak ditampilkan sebagai tagihan aktif sesi hari ini agar rekap tidak tercampur. Buka ulang sesi asal atau selesaikan data legacy lebih dulu.</p>
       </Card>
     )}
-    {openOrders.length===0?(<Card style={{textAlign:"center",padding:32}}><p style={{fontSize:28,marginBottom:8}}>🎉</p><p style={{color:"var(--muted)"}}>Tidak ada tagihan terbuka untuk sesi ini.</p></Card>)
-    :openOrders.map(o=>(<div className="tagihan-card" key={o.id} onClick={()=>setSel(o.id)} style={{background:"var(--card)",border:"1px solid var(--border)",
-      borderRadius:13,padding:"13px 15px",marginBottom:9,display:"flex",justifyContent:"space-between",cursor:"pointer",alignItems:"center"}}>
-      <div style={{flex:1}}>
-        <p style={{color:"var(--text)",fontWeight:700,fontSize:15}}>{o.customerName}</p>
-        <p style={{color:"var(--muted)",fontSize:12,marginTop:2}}>{o.items.map(i=>`${i.name} ×${i.qty}${i.note?` • ${i.note}`:""}`).join(" • ")}</p>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginTop:5,flexWrap:"wrap"}}>
-          <KasirChip kasirId={o.kasirId} kasirs={kasirs}/>
-          <span style={{color:"var(--muted)",fontSize:11}}>Sesi {fmtShort(orderSessionDate(o)||businessDate)}</span>
+
+    {openOrders.length===0 ? (
+      <Card style={{textAlign:"center",padding:32}}><p style={{fontSize:28,marginBottom:8}}>🎉</p><p style={{color:"var(--muted)"}}>Tidak ada tagihan terbuka untuk sesi ini.</p></Card>
+    ) : viewMode==="list" ? (
+      openOrders.map(o=>(
+        <div className="tagihan-card" key={o.id} onClick={()=>setSel(o.id)}
+          style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:13,padding:"13px 15px",marginBottom:9,cursor:"pointer",boxShadow:"0 2px 8px rgba(15,23,42,0.05)"}}>
+          {/* Baris nama + harga */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <p style={{color:"var(--text)",fontWeight:700,fontSize:15,fontFamily:"'Sora',sans-serif"}}>{o.customerName}</p>
+            <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+              <p className="sora" style={{color:"var(--amber)",fontWeight:800,fontSize:14}}>{rupiah(o.total)}</p>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+          {/* Divider */}
+          <div style={{height:1,background:"var(--bg2)",marginBottom:7}}/>
+          {/* Item rows */}
+          {o.items.slice(0,3).map((item,idx)=>(
+            <div key={idx} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"2.5px 0"}}>
+              <p style={{color:"var(--muted)",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"80%",lineHeight:1.4}}>
+                {item.name}{item.note?` · ${item.note}`:""}
+              </p>
+              <span style={{color:"var(--text)",fontSize:12,fontWeight:700,flexShrink:0}}>×{item.qty}</span>
+            </div>
+          ))}
+          {o.items.length>3&&<p style={{color:"var(--amber)",fontSize:11,fontWeight:600,marginTop:3}}>··· +{o.items.length-3} item lainnya</p>}
+          {/* Footer */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:9}}>
+            <KasirChip kasirId={o.kasirId} kasirs={kasirs}/>
+            <span style={{color:"var(--muted)",fontSize:11}}>Sesi {fmtShort(orderSessionDate(o)||businessDate)}</span>
+          </div>
         </div>
+      ))
+    ) : (
+      /* Grid 2 kolom */
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,gridAutoRows:"1fr",alignItems:"stretch"}}>
+        {openOrders.map(o=>{
+          const MAX=3;
+          const visible=o.items.slice(0,MAX);
+          const overflow=o.items.length-MAX;
+          const totalQty=o.items.reduce((s,i)=>s+(Number(i.qty)||0),0);
+          return(
+            <div key={o.id} onClick={()=>setSel(o.id)}
+              style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"12px 12px 11px",cursor:"pointer",boxShadow:"0 2px 8px rgba(15,23,42,0.05)",display:"flex",flexDirection:"column",height:"100%"}}>
+              {/* Nama + chevron */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                <p style={{color:"var(--text)",fontWeight:700,fontSize:13,fontFamily:"'Sora',sans-serif",lineHeight:1.3,flex:1,paddingRight:4}}>{o.customerName}</p>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+              {/* Harga + qty badge */}
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                <span className="sora" style={{color:"var(--amber)",fontWeight:800,fontSize:13}}>{rupiah(o.total)}</span>
+                <span style={{background:"var(--amber-dim)",color:"var(--amber)",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:99}}>{totalQty} item</span>
+              </div>
+              {/* Divider */}
+              <div style={{height:1,background:"var(--bg2)",marginBottom:7}}/>
+              {/* Item list mini */}
+              <div style={{flex:1}}>
+                {visible.map((item,idx)=>(
+                  <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"1.5px 0"}}>
+                    <p style={{color:"var(--muted)",fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"78%",lineHeight:1.4}}>{item.name}</p>
+                    <span style={{color:"var(--text)",fontSize:11,fontWeight:700,flexShrink:0}}>×{item.qty}</span>
+                  </div>
+                ))}
+                {overflow>0&&<p style={{color:"var(--amber)",fontSize:10,fontWeight:600,marginTop:3}}>+{overflow} lainnya</p>}
+              </div>
+              {/* Footer kasir */}
+              <div style={{marginTop:8,paddingTop:7,borderTop:"1px solid var(--bg2)"}}>
+                <KasirChip kasirId={o.kasirId} kasirs={kasirs}/>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,marginLeft:10}}>
-        <p className="sora" style={{color:"var(--amber)",fontWeight:800,fontSize:14}}>{rupiah(o.total)}</p>
-        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
-    </div>))}
+    )}
   </div>);
 };
 
@@ -4775,7 +4857,7 @@ export default function AngkringanApp() {
                   <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingBottom:10,marginBottom:10,
                     borderBottom:i<detailOrder.items.length-1?"1px solid var(--border)":"none"}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <p style={{color:"var(--text)",fontWeight:600,fontSize:14}}>{item.name}</p>
+                      <p style={{color:"var(--text)",fontWeight:600,fontSize:14,wordBreak:"break-word",overflowWrap:"anywhere"}}>{item.name}</p>
                       {item.note&&<p style={{color:"var(--blue)",fontSize:11,marginTop:2}}>📝 {item.note}</p>}
                       <p style={{color:"var(--muted)",fontSize:12,marginTop:2}}>{item.qty} × {rupiah(item.price)}</p>
                     </div>
