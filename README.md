@@ -40,3 +40,18 @@ cd android
 3. Jika domain berubah, update `WEB_APP_URL` dan `TRUSTED_HOST`
 4. Build release APK/AAB dari Android Studio atau Gradle
 5. Uji login, transaksi, printer, backup, restore, dan tutup sesi
+
+
+## Environment untuk Vercel
+Tambahkan environment variable berikut di Vercel Project Settings:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Simpan nilai rahasia di Vercel/GitHub Secrets, jangan hardcode ulang di source.
+
+## Realtime multi-device Supabase
+Agar sinkron antar device lebih cepat dan stabil:
+1. Jalankan `web/supabase_session_date_sessions_level2.sql`
+2. Jalankan `web/supabase_realtime_hardening.sql`
+3. Pastikan tabel `orders`, `expenses`, `menus`, `kasirs`, `mitras`, `settings`, dan `sessions` masuk ke publication `supabase_realtime`
+4. Di Android, pairing printer dulu dari pengaturan Bluetooth HP, baru pilih dari aplikasi
