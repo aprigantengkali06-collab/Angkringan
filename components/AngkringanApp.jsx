@@ -338,7 +338,7 @@ if(typeof window !== "undefined"){
 const DEFAULT_FILTER_CATS = ["Semua","Kopi","Makanan"];
 const DEFAULT_MENU_CATS = ["Kopi","Makanan"];
 const PRINTER_STATUS_POLL_MS = 5000;
-const FALLBACK_REFRESH_MS = 180000;
+const FALLBACK_REFRESH_MS = 15000;
 const REMOTE_REFRESH_DELAY_MS = 180;
 const SETTINGS_SYNC_DELAY_MS = 250;
 const ORDER_SYNC_DELAY_MS = 240;
@@ -2214,11 +2214,20 @@ const Dashboard = ({orders,expenses,setExpenses,user,setScreen,target,setTarget,
 };
 
 // ── POS ──
-const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,setScreen,posStep:step,setPosStep:setStep,posName:name,setPosName:setName,posCart:cart,setPosCart:setCart,receiptSettings,setDetailOrder}) => {
+const OpenSearchBtn = ({active, onClick}) => (
+  <button onClick={onClick} style={{width:28,height:28,borderRadius:8,background:active?"var(--amber-dim)":"rgba(255,255,255,0.82)",border:`1px solid ${active?"rgba(245,158,11,0.28)":"var(--border)"}`,display:"flex",alignItems:"center",justifyContent:"center",color:active?"var(--amber)":"var(--muted)",cursor:"pointer",boxShadow:"0 2px 6px rgba(15,23,42,0.07)",flexShrink:0,transition:"all .15s ease"}}>
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+  </button>
+);
+
+const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,setScreen,posStep:step,setPosStep:setStep,posName:name,setPosName:setName,posCart:cart,setPosCart:setCart,receiptSettings,setDetailOrder,loadFromSupabase}) => {
   const [cat,setCat]=useState("Semua");
   const [search,setSearch]=useState("");
   const [showSearch,setShowSearch]=useState(false);
   const searchRef=useRef(null);
+  const [openSearch,setOpenSearch]=useState(false);
+  const [openQ,setOpenQ]=useState("");
+  const openSearchRef=useRef(null);
   const [layout,setLayout]=useState(()=>{try{return localStorage.getItem("posLayout")||"grid";}catch{return "grid";}});
   const setLayoutSave=v=>{setLayout(v);try{localStorage.setItem("posLayout",v);}catch{}};
   // bottom sheet untuk pilih suhu + catatan
@@ -2268,7 +2277,7 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
     });
   };
   const chg=(key,d)=>setCart(p=>p.map(c=>c.cartKey===key?{...c,qty:c.qty+d}:c).filter(c=>c.qty>0));
-  const reset=()=>{setStep("name");setName("");setCart([]);setCat("Semua");setSearch("");setShowSearch(false);};
+  const reset=()=>{setStep("name");setName("");setCart([]);setCat("Semua");setSearch("");setShowSearch(false);setOpenSearch(false);setOpenQ("");};
   const quickMenus=useMemo(()=>{
     const freq={};orders.forEach(o=>o.items.forEach(i=>{freq[i.menuId]=(freq[i.menuId]||0)+i.qty;}));
     return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,4)
@@ -2291,6 +2300,7 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
     const newOrder=normalizeOrder({id:genId("ORD"),customerName:name,status:"open",
       sessionDate:businessDate,sessionId:currentSessionId||null,createdAt:localISO(),paidAt:null,items:cart,total,kasirId:user.id,lastDeviceId:user.id});
     setOrders(p=>[...p,newOrder]);
+    if(loadFromSupabase) setTimeout(()=>loadFromSupabase({force:true}), 500);
     setSuccessState({type:"nanti",kembalian:0,order:newOrder,mode:"nanti"});
   };
   const konfirmasiBayar=()=>{
@@ -2299,6 +2309,7 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
     const newOrder=normalizeOrder({id:genId("ORD"),customerName:name,status:"paid",
       sessionDate:businessDate,sessionId:currentSessionId||null,createdAt:localISO(),paidAt:localISO(),items:cart,total,kasirId:user.id,lastDeviceId:user.id});
     setOrders(p=>[...p,newOrder]);
+    if(loadFromSupabase) setTimeout(()=>loadFromSupabase({force:true}), 500);
     setBayarModal(false);setUangDibayar("");
     setSuccessState({type:"lunas",kembalian:kemb,order:newOrder,mode:"lunas"});
   };
@@ -2329,9 +2340,19 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
         <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
             <p style={{fontSize:11,color:"var(--red)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em"}}>⏳ Belum Bayar ({todayOpen.length})</p>
-            <button onClick={()=>setScreen("tagihan")} style={{fontSize:12,color:"var(--amber)",fontWeight:600,background:"none",border:"none",cursor:"pointer"}}>Kelola →</button>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <OpenSearchBtn active={openSearch} onClick={()=>{setOpenSearch(v=>{if(v){setOpenQ("");return false;}return true;});setTimeout(()=>openSearchRef.current?.focus(),60);}}/>
+              <button onClick={()=>setScreen("tagihan")} style={{fontSize:12,color:"var(--amber)",fontWeight:600,background:"none",border:"none",cursor:"pointer"}}>Kelola →</button>
+            </div>
           </div>
-          {todayOpen.map((o,i)=>(
+          {openSearch&&(
+            <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1.5px solid rgba(245,158,11,0.35)",borderRadius:10,padding:"7px 12px",marginBottom:9,boxShadow:"0 2px 8px rgba(245,158,11,0.08)"}}>
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input ref={openSearchRef} value={openQ} onChange={e=>setOpenQ(e.target.value)} placeholder="Cari nama pelanggan..." style={{flex:1,fontSize:13,color:"var(--text)",background:"transparent",border:"none",outline:"none",fontFamily:"'DM Sans',sans-serif"}}/>
+              {openQ&&<button onClick={()=>{setOpenQ("");openSearchRef.current?.focus();}} style={{background:"none",border:"none",cursor:"pointer",color:"#94A3B8",display:"flex",alignItems:"center",padding:0}}><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>}
+            </div>
+          )}
+          {(openSearch&&openQ?todayOpen.filter(o=>o.customerName?.toLowerCase().includes(openQ.toLowerCase())):todayOpen).map((o,i)=>(
             <div key={o.id} onClick={()=>setScreen("tagihan")} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:13,padding:"13px 15px",marginBottom:9,cursor:"pointer",boxShadow:"0 2px 8px rgba(15,23,42,0.05)"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -4710,7 +4731,7 @@ export default function AngkringanApp() {
     };
 
     const channel = supabase.channel(`angkringan-live-${deviceId}`)
-      .on("postgres_changes", {event:"*", schema:"public", table:"orders"}, payload=>applyRealtimeRow({key:"orders", payload, mapRow:mapOrderRow, setState:setOrders, serialize:serializeOrderForSync, skipSelf:true}))
+      .on("postgres_changes", {event:"*", schema:"public", table:"orders"}, payload=>applyRealtimeRow({key:"orders", payload, mapRow:mapOrderRow, setState:setOrders, serialize:serializeOrderForSync}))
       .on("postgres_changes", {event:"*", schema:"public", table:"expenses"}, payload=>applyRealtimeRow({key:"expenses", payload, mapRow:mapExpenseRow, setState:setExpenses}))
       .on("postgres_changes", {event:"*", schema:"public", table:"menus"}, payload=>applyRealtimeRow({key:"menus", payload, mapRow:mapMenuRow, setState:setMenus}))
       .on("postgres_changes", {event:"*", schema:"public", table:"kasirs"}, payload=>applyRealtimeRow({key:"kasirs", payload, mapRow:mapKasirRow, setState:setKasirs}))
@@ -5002,7 +5023,7 @@ export default function AngkringanApp() {
         <div key={screen} className="screen-shell fi">
           {screen==="home"&&<Dashboard orders={orders} expenses={expenses} setExpenses={setExpenses} user={user} setScreen={setScreen} target={target} setTarget={setTarget} kasirs={kasirs} mitras={mitras} menus={menus} businessDate={businessDate} sessionOpen={sessionOpen} sessionDate={sessionDate} onBuka={handleBuka} onTutup={handleTutup}/>}
           {screen==="pos"&&(user.role==="owner"||sessionOpen?
-            <POS menus={menus} orders={orders} setOrders={setOrders} user={user} businessDate={businessDate} currentSessionId={currentSessionId} kasirs={kasirs} setScreen={setScreen} posStep={posStep} setPosStep={setPosStep} posName={posName} setPosName={setPosName} posCart={posCart} setPosCart={setPosCart} receiptSettings={receiptSettings} setDetailOrder={setDetailOrder}/>
+            <POS menus={menus} orders={orders} setOrders={setOrders} user={user} businessDate={businessDate} currentSessionId={currentSessionId} kasirs={kasirs} setScreen={setScreen} posStep={posStep} setPosStep={setPosStep} posName={posName} setPosName={setPosName} posCart={posCart} setPosCart={setPosCart} receiptSettings={receiptSettings} setDetailOrder={setDetailOrder} loadFromSupabase={loadFromSupabase}/>
             :<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
               <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(239,68,68,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
