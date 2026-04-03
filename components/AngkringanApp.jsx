@@ -338,7 +338,7 @@ if(typeof window !== "undefined"){
 const DEFAULT_FILTER_CATS = ["Semua","Kopi","Makanan"];
 const DEFAULT_MENU_CATS = ["Kopi","Makanan"];
 const PRINTER_STATUS_POLL_MS = 5000;
-const FALLBACK_REFRESH_MS = 15000;
+const FALLBACK_REFRESH_MS = 2500;
 const REMOTE_REFRESH_DELAY_MS = 180;
 const SETTINGS_SYNC_DELAY_MS = 250;
 const ORDER_SYNC_DELAY_MS = 240;
@@ -2300,7 +2300,6 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
     const newOrder=normalizeOrder({id:genId("ORD"),customerName:name,status:"open",
       sessionDate:businessDate,sessionId:currentSessionId||null,createdAt:localISO(),paidAt:null,items:cart,total,kasirId:user.id,lastDeviceId:user.id});
     setOrders(p=>[...p,newOrder]);
-    if(loadFromSupabase) setTimeout(()=>loadFromSupabase({force:true}), 500);
     setSuccessState({type:"nanti",kembalian:0,order:newOrder,mode:"nanti"});
   };
   const konfirmasiBayar=()=>{
@@ -2309,7 +2308,6 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
     const newOrder=normalizeOrder({id:genId("ORD"),customerName:name,status:"paid",
       sessionDate:businessDate,sessionId:currentSessionId||null,createdAt:localISO(),paidAt:localISO(),items:cart,total,kasirId:user.id,lastDeviceId:user.id});
     setOrders(p=>[...p,newOrder]);
-    if(loadFromSupabase) setTimeout(()=>loadFromSupabase({force:true}), 500);
     setBayarModal(false);setUangDibayar("");
     setSuccessState({type:"lunas",kembalian:kemb,order:newOrder,mode:"lunas"});
   };
@@ -4701,6 +4699,12 @@ export default function AngkringanApp() {
 
   useEffect(()=>{
     if(!syncReady) return;
+    let destroyed = false;
+    let activeChannel = null;
+    let reconnectTimer = null;
+    // FIX: hapus firstSubscribe — setiap SUBSCRIBED (termasuk pertama kali) harus refresh
+    // agar tidak ada celah antara loadFromSupabase() selesai dan channel aktif
+
     const scheduleRemoteRefresh = () => {
       scheduleSyncTask("remote-refresh", async ()=>{
         await loadFromSupabase();
@@ -4730,21 +4734,70 @@ export default function AngkringanApp() {
       setState(prev=>upsertById(prev, nextRow));
     };
 
-    const channel = supabase.channel(`angkringan-live-${deviceId}`)
-      .on("postgres_changes", {event:"*", schema:"public", table:"orders"}, payload=>applyRealtimeRow({key:"orders", payload, mapRow:mapOrderRow, setState:setOrders, serialize:serializeOrderForSync}))
-      .on("postgres_changes", {event:"*", schema:"public", table:"expenses"}, payload=>applyRealtimeRow({key:"expenses", payload, mapRow:mapExpenseRow, setState:setExpenses}))
-      .on("postgres_changes", {event:"*", schema:"public", table:"menus"}, payload=>applyRealtimeRow({key:"menus", payload, mapRow:mapMenuRow, setState:setMenus}))
-      .on("postgres_changes", {event:"*", schema:"public", table:"kasirs"}, payload=>applyRealtimeRow({key:"kasirs", payload, mapRow:mapKasirRow, setState:setKasirs}))
-      .on("postgres_changes", {event:"*", schema:"public", table:"mitras"}, payload=>applyRealtimeRow({key:"mitras", payload, mapRow:mapMitraRow, setState:setMitras}))
-      .on("postgres_changes", {event:"*", schema:"public", table:"settings"}, ()=>scheduleRemoteRefresh())
-      .subscribe(status=>{
-        if(status === "CHANNEL_ERROR" || status === "TIMED_OUT") scheduleRemoteRefresh();
-      });
+    // FIX: doSubscribe dibuat async agar removeChannel di-await sebelum channel baru dibuat
+    // Sebelumnya: removeChannel tanpa await → channel lama belum selesai dilepas saat channel baru dibuat
+    const doSubscribe = async () => {
+      if(destroyed) return;
+      if(activeChannel){
+        try{ await supabase.removeChannel(activeChannel); }catch(e){}
+        activeChannel = null;
+      }
+      clearTimeout(reconnectTimer);
+      if(destroyed) return;
+
+      const channel = supabase.channel(`angkringan-live-${deviceId}`)
+        .on("postgres_changes", {event:"*", schema:"public", table:"orders"}, payload=>applyRealtimeRow({key:"orders", payload, mapRow:mapOrderRow, setState:setOrders, serialize:serializeOrderForSync}))
+        .on("postgres_changes", {event:"*", schema:"public", table:"expenses"}, payload=>applyRealtimeRow({key:"expenses", payload, mapRow:mapExpenseRow, setState:setExpenses}))
+        .on("postgres_changes", {event:"*", schema:"public", table:"menus"}, payload=>applyRealtimeRow({key:"menus", payload, mapRow:mapMenuRow, setState:setMenus}))
+        .on("postgres_changes", {event:"*", schema:"public", table:"kasirs"}, payload=>applyRealtimeRow({key:"kasirs", payload, mapRow:mapKasirRow, setState:setKasirs}))
+        .on("postgres_changes", {event:"*", schema:"public", table:"mitras"}, payload=>applyRealtimeRow({key:"mitras", payload, mapRow:mapMitraRow, setState:setMitras}))
+        .on("postgres_changes", {event:"*", schema:"public", table:"settings"}, ()=>scheduleRemoteRefresh())
+        .subscribe(status=>{
+          if(status === "SUBSCRIBED"){
+            // FIX: selalu refresh setiap SUBSCRIBED (hapus pengecekan firstSubscribe)
+            // Ini memastikan tidak ada order yang terlewat di window antara init dan subscription aktif
+            scheduleRemoteRefresh();
+          }
+          if(status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED"){
+            scheduleRemoteRefresh();
+            if(!destroyed){
+              clearTimeout(reconnectTimer);
+              reconnectTimer = setTimeout(doSubscribe, 3000);
+            }
+          }
+        });
+      activeChannel = channel;
+    };
+
+    doSubscribe();
+
+    // FIX: visibilitychange sekarang langsung panggil loadFromSupabase() dulu (tidak nunggu SUBSCRIBED),
+    // lalu baru doSubscribe() untuk pastikan channel fresh
+    // Sebelumnya: hanya doSubscribe() → harus nunggu handshake + 180ms sebelum data terupdate
+    const onVisibilityChange = () => {
+      if(document.visibilityState === "visible"){
+        loadFromSupabase(); // langsung fetch data terbaru, tidak tunggu subscription
+        doSubscribe();      // sekaligus pastikan channel realtime fresh
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    // FIX: tambah handler online — jika jaringan putus lalu nyambung lagi,
+    // langsung refresh data dan reconnect channel
+    const onOnline = () => {
+      loadFromSupabase();
+      doSubscribe();
+    };
+    window.addEventListener("online", onOnline);
 
     return ()=>{
-      supabase.removeChannel(channel).catch(()=>{});
+      destroyed = true;
+      clearTimeout(reconnectTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("online", onOnline);
+      if(activeChannel) supabase.removeChannel(activeChannel).catch(()=>{});
     };
-  },[deviceId, scheduleSyncTask]);
+  },[deviceId, scheduleSyncTask, syncReady, loadFromSupabase]);
 
   useEffect(()=>{
     if(!syncReady) return;
@@ -4755,15 +4808,13 @@ export default function AngkringanApp() {
       }, 260);
     };
     const interval = setInterval(refresh, FALLBACK_REFRESH_MS);
-    const onVisible = ()=>{ if(document.visibilityState==="visible") refresh(); };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", onVisible);
+    const onFocus = ()=>refresh();
+    window.addEventListener("focus", onFocus);
     return ()=>{
       clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
     };
-  },[scheduleSyncTask]);
+  },[scheduleSyncTask, syncReady]);
 
   useEffect(()=>{
     if(sessionOpen && !currentSessionId){
