@@ -103,7 +103,7 @@ const orderCreatedAt = order => {
   const raw = order?.createdAt || null;
   if(typeof raw === "string" && raw.length===10) return null;
   return raw;
-});
+};
 const orderActualPaidAt = order => order?.paidAt || null;
 const hasCrossDatePayment = order => {
   const reportDate = orderSessionDate(order);
@@ -1317,7 +1317,7 @@ const DayDetail = ({date, orders, expenses, setExpenses, kasirs, menus, onBack, 
         </div>
     </div>
   );
-});
+};
 
 // ── Keuangan Main ──
 const Keuangan = memo(({orders, expenses, setExpenses, kasirs, menus, businessDate, receiptSettings}) => {
@@ -1460,7 +1460,7 @@ const Keuangan = memo(({orders, expenses, setExpenses, kasirs, menus, businessDa
       </div>
     </div>
   );
-});
+};
 
 // ── Login ──
 const Login = memo(({onLogin, kasirs, ownerPassword}) => {
@@ -3437,7 +3437,7 @@ const Tim = ({kasirs,setKasirs,mitras,setMitras,ownerPassword,setOwnerPassword,o
       </>)}
     </div>
   </div>);
-});
+};
 
 // ── Menu Mgmt ──
 const MenuMgmt = memo(({menus,setMenus,mitras,onClose}) => {
@@ -3733,7 +3733,7 @@ const MenuMgmt = memo(({menus,setMenus,mitras,onClose}) => {
       </div>
     </div>)}
   </div>);
-});
+};
 
 const DataTools = ({busy,onClose,onBackup,onRestore,onReset,receiptSettings,onSaveReceiptSettings,printerStatus,printerBusy,onPrinterSelect,onPrinterRefresh,onPrinterClear}) => {
   const fileRef = useRef(null);
@@ -3827,7 +3827,7 @@ const DataTools = ({busy,onClose,onBackup,onRestore,onReset,receiptSettings,onSa
       </div>
     </div>
   );
-});
+};
 
 
 // ── ReceiptPreviewModal — Preview struk in-app sebelum cetak ──────────────
