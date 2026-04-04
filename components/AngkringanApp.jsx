@@ -1351,7 +1351,6 @@ const Keuangan = memo(({orders, expenses, setExpenses, kasirs, menus, businessDa
               kasirs={kasirs} menus={menus} onBack={()=>setSelDay(null)} businessDate={businessDate}
               baseSummary={getDaySummary(selDay)} receiptSettings={receiptSettings}/>
           </div>
-        /* Level 2: Month Detail */
         ):selMonth?(
           <div className="fi">
             <BackBtn onClick={()=>setSelMonth(null)}/>
@@ -1442,7 +1441,6 @@ const Keuangan = memo(({orders, expenses, setExpenses, kasirs, menus, businessDa
               </div>
             )}
           </div>
-        /* Level 1: Month List */
         ):(
           <div className="fi">
             <div style={{marginBottom:14}}>
