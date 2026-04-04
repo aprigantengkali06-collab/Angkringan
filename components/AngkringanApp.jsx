@@ -3730,7 +3730,7 @@ const MenuMgmt = memo(({menus,setMenus,mitras,onClose}) => {
       </div>
     </div>)}
   </div>);
-};
+});
 
 const DataTools = ({busy,onClose,onBackup,onRestore,onReset,receiptSettings,onSaveReceiptSettings,printerStatus,printerBusy,onPrinterSelect,onPrinterRefresh,onPrinterClear}) => {
   const fileRef = useRef(null);
