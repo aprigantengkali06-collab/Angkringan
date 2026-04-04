@@ -4891,7 +4891,7 @@ export default function AngkringanApp() {
 
   const titles={
     home:{title:"Dashboard",sub:getNow().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long"})},
-    pos:{title:"Kasir",sub:`Jaga: ${user.name}`},
+    pos:{title:"Kasir"},
     tagihan:{title:"Tagihan",sub:"Pesanan belum lunas"},
     keuangan:{title:"Keuangan",sub:"Laporan Keuangan"},
   };
