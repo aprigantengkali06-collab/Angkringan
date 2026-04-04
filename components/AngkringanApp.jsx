@@ -338,7 +338,7 @@ if(typeof window !== "undefined"){
 const DEFAULT_FILTER_CATS = ["Semua","Kopi","Makanan"];
 const DEFAULT_MENU_CATS = ["Kopi","Makanan"];
 const PRINTER_STATUS_POLL_MS = 5000;
-const FALLBACK_REFRESH_MS = 2500;
+const FALLBACK_REFRESH_MS = 15000;
 const REMOTE_REFRESH_DELAY_MS = 180;
 const SETTINGS_SYNC_DELAY_MS = 250;
 const ORDER_SYNC_DELAY_MS = 240;
@@ -958,7 +958,7 @@ const formatThousands = v => v ? Number(String(v).replace(/\D/g,'')||0).toLocale
 // Helper: parse angka dari string berformat (hapus semua non-digit)
 const parseNum = v => String(v||'').replace(/\D/g,'');
 
-const TxtInput = ({label,value,onChange,placeholder,type="text",prefix,moneyFormat=false}) => {
+const TxtInput = memo(({label,value,onChange,placeholder,type="text",prefix,moneyFormat=false}) => {
   // moneyFormat: tampilkan ribuan titik, simpan angka murni
   const displayVal = moneyFormat ? formatThousands(value) : value;
   const handleChange = e => {
@@ -975,7 +975,7 @@ const TxtInput = ({label,value,onChange,placeholder,type="text",prefix,moneyForm
       </div>
     </div>
   );
-};
+});
 const MoneyInput = ({label, value, onChange, total=0}) => {
   const display = value ? Number(value).toLocaleString('id-ID') : '';
   const handleInput = e => { const raw = e.target.value.replace(/\D/g,''); onChange(raw); };
@@ -1664,7 +1664,7 @@ const getTopMenus = (orders,n=3) => {
 };
 
 // ── Dashboard ──
-const Dashboard = ({orders,expenses,setExpenses,user,setScreen,target,setTarget,kasirs,mitras,menus,businessDate,sessionOpen,sessionDate,onBuka,onTutup}) => {
+const Dashboard = memo(({orders,expenses,setExpenses,user,setScreen,target,setTarget,kasirs,mitras,menus,businessDate,sessionOpen,sessionDate,onBuka,onTutup}) => {
   const [editTarget,setEditTarget]=useState(false);
   const [tmpTarget,setTmpTarget]=useState(String(target));
   const targetInputRef=useRef(null);
@@ -2211,7 +2211,7 @@ const Dashboard = ({orders,expenses,setExpenses,user,setScreen,target,setTarget,
       </>)}
     </div>
   );
-};
+});
 
 // ── POS ──
 const OpenSearchBtn = ({active, onClick}) => (
@@ -2220,7 +2220,7 @@ const OpenSearchBtn = ({active, onClick}) => (
   </button>
 );
 
-const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,setScreen,posStep:step,setPosStep:setStep,posName:name,setPosName:setName,posCart:cart,setPosCart:setCart,receiptSettings,setDetailOrder,loadFromSupabase}) => {
+const POS = memo(({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,setScreen,posStep:step,setPosStep:setStep,posName:name,setPosName:setName,posCart:cart,setPosCart:setCart,receiptSettings,setDetailOrder,loadFromSupabase}) => {
   const [cat,setCat]=useState("Semua");
   const [search,setSearch]=useState("");
   const [showSearch,setShowSearch]=useState(false);
@@ -2688,10 +2688,10 @@ const POS = ({menus,orders,setOrders,user,businessDate,currentSessionId,kasirs,s
       </div>
     </div>)}
   </div>);
-};
+});
 
 // ── Tagihan ──
-const Tagihan = ({orders,setOrders,menus,user,kasirs,businessDate,currentSessionId,receiptSettings}) => {
+const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSessionId,receiptSettings}) => {
   const [sel,setSel]=useState(null);
   const [adding,setAdding]=useState(false);
   const [cat,setCat]=useState("Semua");
@@ -3439,7 +3439,7 @@ const Tim = ({kasirs,setKasirs,mitras,setMitras,ownerPassword,setOwnerPassword,o
       </>)}
     </div>
   </div>);
-};
+});
 
 // ── Menu Mgmt ──
 const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
@@ -4056,16 +4056,16 @@ export default function AngkringanApp() {
           replaceCollectionIfChanged("expenses", nextExpenses, setExpenses);
         }
         if(settingsRes.data){
-          const t=settingsRes.data.find(r=>r.key==="target"); if(t) setTarget(Number(t.value));
-          const so=settingsRes.data.find(r=>r.key==="session_open"); if(so) setSessionOpen(so.value==="true");
-          const sd=settingsRes.data.find(r=>r.key==="session_date"); if(sd) setSessionDate(sd.value||null);
-          const cs=settingsRes.data.find(r=>r.key==="current_session_id"); if(cs) setCurrentSessionId(cs.value||null);
-          const op=settingsRes.data.find(r=>r.key==="owner_password"); if(op?.value) setOwnerPassword(op.value);
+          const t=settingsRes.data.find(r=>r.key==="target");
+          const so=settingsRes.data.find(r=>r.key==="session_open");
+          const sd=settingsRes.data.find(r=>r.key==="session_date");
+          const cs=settingsRes.data.find(r=>r.key==="current_session_id");
+          const op=settingsRes.data.find(r=>r.key==="owner_password");
           const receiptHeader=settingsRes.data.find(r=>r.key==="receipt_header")?.value;
           const receiptFooterPaid=settingsRes.data.find(r=>r.key==="receipt_footer_paid")?.value;
           const receiptFooterOpen=settingsRes.data.find(r=>r.key==="receipt_footer_open")?.value;
           const nextReceiptSettings = normalizeReceiptSettings({header:receiptHeader,footerPaid:receiptFooterPaid,footerOpen:receiptFooterOpen});
-          syncedSettingsSignature.current = JSON.stringify({
+          const nextSignature = JSON.stringify({
             target:Number(t?.value ?? 500000),
             sessionOpen:so?.value === "true",
             sessionDate:sd?.value || null,
@@ -4073,7 +4073,16 @@ export default function AngkringanApp() {
             ownerPassword:op?.value || DEFAULT_OWNER_PASSWORD,
             receiptSettings:nextReceiptSettings,
           });
-          setReceiptSettings(nextReceiptSettings);
+          // Hanya update state jika ada perubahan — cegah re-render sia-sia setiap fetch
+          if(nextSignature !== syncedSettingsSignature.current){
+            syncedSettingsSignature.current = nextSignature;
+            if(t) setTarget(prev=>{ const next=Number(t.value); return next===prev?prev:next; });
+            if(so){ const next=so.value==="true"; setSessionOpen(prev=>next===prev?prev:next); }
+            if(sd){ const next=sd.value||null; setSessionDate(prev=>next===prev?prev:next); }
+            if(cs){ const next=cs.value||null; setCurrentSessionId(prev=>next===prev?prev:next); }
+            if(op?.value){ setOwnerPassword(prev=>op.value===prev?prev:op.value); }
+            setReceiptSettings(prev=>JSON.stringify(prev)===JSON.stringify(nextReceiptSettings)?prev:nextReceiptSettings);
+          }
         }
       }catch(err){
         console.error("loadFromSupabase error", err);
@@ -4893,12 +4902,15 @@ export default function AngkringanApp() {
   };
   const navItems = getNavItems(user.role);
   const isHome = screen==="home";
-  const headerLeft = (
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const headerLeft = useMemo(()=>(
     <button onClick={()=>setNavOpen(true)} style={{width:44,height:44,minWidth:44,minHeight:44,borderRadius:14,background:"rgba(255,255,255,0.94)",border:"1px solid rgba(215,226,240,0.98)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",flexShrink:0,overflow:"visible",boxShadow:"0 8px 18px rgba(15,23,42,0.06)"}}>
       <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
-  );
-  const headerRight = (
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ),[]);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const headerRight = useMemo(()=>(
     <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
       {printerStatus?.nativeShell && <PrinterStatusBadge status={printerStatus} busy={!!printerBusy} onClick={()=>setOverlay(user.role==="owner"?"data":"printer")}/>}
       {isHome ? (
@@ -4912,7 +4924,8 @@ export default function AngkringanApp() {
         </button>
       )}
     </div>
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ),[screen, printerStatus, printerBusy, user?.role]);
 
   return(<><FontStyle/>
     <div className="app-shell">
