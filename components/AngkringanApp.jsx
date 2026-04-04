@@ -338,10 +338,10 @@ if(typeof window !== "undefined"){
 const DEFAULT_FILTER_CATS = ["Semua","Kopi","Makanan"];
 const DEFAULT_MENU_CATS = ["Kopi","Makanan"];
 const PRINTER_STATUS_POLL_MS = 5000;
-const FALLBACK_REFRESH_MS = 15000;
-const REMOTE_REFRESH_DELAY_MS = 180;
-const SETTINGS_SYNC_DELAY_MS = 250;
-const ORDER_SYNC_DELAY_MS = 240;
+const FALLBACK_REFRESH_MS = 30000;
+const REMOTE_REFRESH_DELAY_MS = 80;
+const SETTINGS_SYNC_DELAY_MS = 400;
+const ORDER_SYNC_DELAY_MS = 120;
 const getCategoryOptions = (menus, includeAll=true) => {
   const seen = new Set();
   (menus||[]).forEach(m=>{
@@ -1320,7 +1320,7 @@ const DayDetail = ({date, orders, expenses, setExpenses, kasirs, menus, onBack, 
 };
 
 // ── Keuangan Main ──
-const Keuangan = ({orders, expenses, setExpenses, kasirs, menus, businessDate, receiptSettings}) => {
+const Keuangan = memo(({orders, expenses, setExpenses, kasirs, menus, businessDate, receiptSettings}) => {
   const [selMonth, setSelMonth] = useState(null);
   const [selDay, setSelDay] = useState(null);
 
@@ -2284,12 +2284,12 @@ const POS = memo(({menus,orders,setOrders,user,businessDate,currentSessionId,kas
       .map(([id])=>menus.find(m=>String(m.id)===id)).filter(m=>m?.available);
   },[orders,menus]);
 
-  const filtered=menus.filter(m=>{
+  const filtered=useMemo(()=>menus.filter(m=>{
     if(!m.available)return false;
     if(cat!=="Semua"&&m.category!==cat)return false;
     if(search&&!m.name.toLowerCase().includes(search.toLowerCase()))return false;
     return true;
-  });
+  }),[menus,cat,search]);
 
   const [bayarModal,setBayarModal]=useState(false);
   const [uangDibayar,setUangDibayar]=useState("");
@@ -2711,9 +2711,9 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
 
   const getLineKey = item => item?.cartKey || buildItemKey(item);
   const getItemsTotal = items => items.reduce((s,i)=>s+(Number(i.price)||0)*(Number(i.qty)||0),0);
-  const openOrders=orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)===businessDate);
-  const carryOverOrders=orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)!==businessDate);
-  const ord=orders.find(o=>o.id===sel);
+  const openOrders=useMemo(()=>orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)===businessDate),[orders,businessDate]);
+  const carryOverOrders=useMemo(()=>orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)!==businessDate),[orders,businessDate]);
+  const ord=useMemo(()=>orders.find(o=>o.id===sel),[orders,sel]);
   const getSheetVariants = menu => {
     if(!menu || menu.mitraId || !menu.suhu || menu.suhu==="Tidak Ada") return [];
     return menu.suhu==="Keduanya" ? ["Ice","Hot"] : [menu.suhu==="Hot" ? "Hot" : "Ice"];
@@ -2951,7 +2951,7 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
     onBack={()=>setSuccessState(null)}
     backLabel={successState.type==="lunas"?"Kembali":"Kembali ke Tagihan"}
   />;
-  if(sel&&ord)return(<div className="tagihan-detail-screen" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+  return (sel&&ord) ? (<div className="tagihan-detail-screen" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
     <Hdr title={ord.customerName} sub={`Sisa ${rupiah(ord.total)} · Sesi ${fmtShort(orderSessionDate(ord)||businessDate)}`}
       right={<div style={{display:"flex",alignItems:"center",gap:8}}>
         <KasirChip kasirId={ord.kasirId} kasirs={kasirs}/>
@@ -3156,9 +3156,7 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
         <Btn v="ghost" onClick={()=>{setLunasModal(false);setUangLunas("");}} full>Batal</Btn>
       </div>
     </div>)}
-  </div>);
-
-  return(<div className="tagihan-list-screen" style={{flex:1,overflowY:"auto",padding:"17px"}}>
+  </div>) : (<div className="tagihan-list-screen" style={{flex:1,overflowY:"auto",padding:"17px"}}>
 
     {/* Header: judul + toggle list/grid */}
     <div className="fu" style={{marginBottom:12,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
@@ -3265,7 +3263,7 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
       </div>
     )}
   </div>);
-};
+});
 
 
 
@@ -3442,7 +3440,7 @@ const Tim = ({kasirs,setKasirs,mitras,setMitras,ownerPassword,setOwnerPassword,o
 });
 
 // ── Menu Mgmt ──
-const MenuMgmt = ({menus,setMenus,mitras,onClose}) => {
+const MenuMgmt = memo(({menus,setMenus,mitras,onClose}) => {
   const [show,setShow]=useState(false);const[eid,setEid]=useState(null);
   // State untuk tambah/edit/hapus kategori
   const [showAddCat,setShowAddCat]=useState(false);
@@ -3829,7 +3827,7 @@ const DataTools = ({busy,onClose,onBackup,onRestore,onReset,receiptSettings,onSa
       </div>
     </div>
   );
-};
+});
 
 
 // ── ReceiptPreviewModal — Preview struk in-app sebelum cetak ──────────────
@@ -5084,37 +5082,45 @@ export default function AngkringanApp() {
 
       {!overlay&&(<div className="app-frame">
         <Hdr {...(titles[screen]||titles.home)} left={headerLeft} right={headerRight}/>
-        <div key={screen} className="screen-shell fi">
-          {screen==="home"&&<Dashboard orders={orders} expenses={expenses} setExpenses={setExpenses} user={user} setScreen={setScreen} target={target} setTarget={setTarget} kasirs={kasirs} mitras={mitras} menus={menus} businessDate={businessDate} sessionOpen={sessionOpen} sessionDate={sessionDate} onBuka={handleBuka} onTutup={handleTutup}/>}
-          {screen==="pos"&&(user.role==="owner"||sessionOpen?
-            <POS menus={menus} orders={orders} setOrders={setOrders} user={user} businessDate={businessDate} currentSessionId={currentSessionId} kasirs={kasirs} setScreen={setScreen} posStep={posStep} setPosStep={setPosStep} posName={posName} setPosName={setPosName} posCart={posCart} setPosCart={setPosCart} receiptSettings={receiptSettings} setDetailOrder={setDetailOrder} loadFromSupabase={loadFromSupabase}/>
-            :<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
-              <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(239,68,68,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-              </div>
-              <div style={{textAlign:"center"}}>
-                <p style={{color:"var(--text)",fontWeight:700,fontSize:16,marginBottom:6}}>Sesi Belum Dibuka</p>
-                <p style={{color:"var(--muted)",fontSize:13,lineHeight:1.5}}>Buka sesi terlebih dahulu di halaman Home untuk mulai menerima pesanan.</p>
-              </div>
-            </div>
-          )}
-          {screen==="tagihan"&&(user.role==="owner"||sessionOpen?
-            <Tagihan orders={orders} setOrders={setOrders} menus={menus} user={user} kasirs={kasirs} businessDate={businessDate} currentSessionId={currentSessionId} receiptSettings={receiptSettings}/>
-            :<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
-              <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(239,68,68,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-              </div>
-              <div style={{textAlign:"center"}}>
-                <p style={{color:"var(--text)",fontWeight:700,fontSize:16,marginBottom:6}}>Sesi Belum Dibuka</p>
-                <p style={{color:"var(--muted)",fontSize:13,lineHeight:1.5}}>Buka sesi terlebih dahulu di halaman Home untuk mengakses tagihan.</p>
-              </div>
-            </div>
-          )}
-          {screen==="keuangan"&&user.role==="owner"&&<Keuangan orders={orders} expenses={expenses} setExpenses={setExpenses} kasirs={kasirs} menus={menus} businessDate={businessDate} receiptSettings={receiptSettings}/>}
+        <div className="screen-shell">
+          <div style={{display:screen==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+            <Dashboard orders={orders} expenses={expenses} setExpenses={setExpenses} user={user} setScreen={setScreen} target={target} setTarget={setTarget} kasirs={kasirs} mitras={mitras} menus={menus} businessDate={businessDate} sessionOpen={sessionOpen} sessionDate={sessionDate} onBuka={handleBuka} onTutup={handleTutup}/>
+          </div>
+          <div style={{display:screen==="pos"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+            {(user.role==="owner"||sessionOpen)
+              ? <POS menus={menus} orders={orders} setOrders={setOrders} user={user} businessDate={businessDate} currentSessionId={currentSessionId} kasirs={kasirs} setScreen={setScreen} posStep={posStep} setPosStep={setPosStep} posName={posName} setPosName={setPosName} posCart={posCart} setPosCart={setPosCart} receiptSettings={receiptSettings} setDetailOrder={setDetailOrder} loadFromSupabase={loadFromSupabase}/>
+              : <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
+                  <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(239,68,68,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                    </svg>
+                  </div>
+                  <div style={{textAlign:"center"}}>
+                    <p style={{color:"var(--text)",fontWeight:700,fontSize:16,marginBottom:6}}>Sesi Belum Dibuka</p>
+                    <p style={{color:"var(--muted)",fontSize:13,lineHeight:1.5}}>Buka sesi terlebih dahulu di halaman Home untuk mulai menerima pesanan.</p>
+                  </div>
+                </div>
+            }
+          </div>
+          <div style={{display:screen==="tagihan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+            {(user.role==="owner"||sessionOpen)
+              ? <Tagihan orders={orders} setOrders={setOrders} menus={menus} user={user} kasirs={kasirs} businessDate={businessDate} currentSessionId={currentSessionId} receiptSettings={receiptSettings}/>
+              : <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
+                  <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(239,68,68,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                    </svg>
+                  </div>
+                  <div style={{textAlign:"center"}}>
+                    <p style={{color:"var(--text)",fontWeight:700,fontSize:16,marginBottom:6}}>Sesi Belum Dibuka</p>
+                    <p style={{color:"var(--muted)",fontSize:13,lineHeight:1.5}}>Buka sesi terlebih dahulu di halaman Home untuk mengakses tagihan.</p>
+                  </div>
+                </div>
+            }
+          </div>
+          <div style={{display:screen==="keuangan"&&user.role==="owner"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+            <Keuangan orders={orders} expenses={expenses} setExpenses={setExpenses} kasirs={kasirs} menus={menus} businessDate={businessDate} receiptSettings={receiptSettings}/>
+          </div>
         </div>
         <Nav screen={screen} set={setScreen} role={user.role}/>
         {/* ── Global Floating Konfirmasi Bar (tampil di Dashboard/Tagihan/Keuangan saat ada keranjang POS) ── */}
