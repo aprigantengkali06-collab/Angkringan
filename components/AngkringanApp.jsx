@@ -4897,15 +4897,12 @@ export default function AngkringanApp() {
   };
   const navItems = getNavItems(user.role);
   const isHome = screen==="home";
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const headerLeft = useMemo(()=>(
+  const headerLeft = (
     <button onClick={()=>setNavOpen(true)} style={{width:44,height:44,minWidth:44,minHeight:44,borderRadius:14,background:"rgba(255,255,255,0.94)",border:"1px solid rgba(215,226,240,0.98)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",flexShrink:0,overflow:"visible",boxShadow:"0 8px 18px rgba(15,23,42,0.06)"}}>
       <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ),[]);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const headerRight = useMemo(()=>(
+  );
+  const headerRight = (
     <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
       {printerStatus?.nativeShell && <PrinterStatusBadge status={printerStatus} busy={!!printerBusy} onClick={()=>setOverlay(user.role==="owner"?"data":"printer")}/>}
       {isHome ? (
@@ -4919,8 +4916,7 @@ export default function AngkringanApp() {
         </button>
       )}
     </div>
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ),[screen, printerStatus, printerBusy, user?.role]);
+  );
 
   return(<><FontStyle/>
     <div className="app-shell">
