@@ -1458,7 +1458,7 @@ const Keuangan = memo(({orders, expenses, setExpenses, kasirs, menus, businessDa
       </div>
     </div>
   );
-};
+});
 
 // ── Login ──
 const Login = memo(({onLogin, kasirs, ownerPassword}) => {
@@ -3219,7 +3219,6 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
         </div>
       ))
     ) : (
-      /* Grid 2 kolom */
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,gridAutoRows:"1fr",alignItems:"stretch"}}>
         {openOrders.map(o=>{
           const MAX=3;
