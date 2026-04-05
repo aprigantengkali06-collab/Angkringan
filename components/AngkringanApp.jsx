@@ -3628,18 +3628,24 @@ const MenuMgmt = memo(({menus,setMenus,mitras,onClose}) => {
   const save=async()=>{if(!form.name||!form.price)return;
     setSaving(true);
     const row={name:form.name.trim().toUpperCase(),price:parseInt(form.price),category:form.category,available:form.available,mitra_id:form.mitraId||null,harga_mitra:form.mitraId&&form.hargaMitra?parseInt(form.hargaMitra):null,suhu:form.mitraId?null:form.suhu};
-    if(eid){
-      const{error}=await supabase.from("menus").upsert({id:eid,...row});
-      if(error){showAlert("Gagal edit: "+error.message,"error");setSaving(false);return;}
-      const menuData={...form,price:parseInt(form.price),mitraId:form.mitraId||null,hargaMitra:form.mitraId&&form.hargaMitra?parseInt(form.hargaMitra):null,suhu:form.mitraId?null:form.suhu};
-      setMenus(p=>p.map(m=>m.id===eid?{...m,...menuData}:m));
-    }else{
-      const{data,error}=await supabase.from("menus").insert(row).select().single();
-      if(error){showAlert("Gagal simpan: "+error.message,"error");setSaving(false);return;}
-      const menuData={name:data.name,price:data.price,category:data.category,available:data.available,mitraId:data.mitra_id||null,hargaMitra:data.harga_mitra||null,suhu:data.suhu||null};
-      setMenus(p=>[...p,{id:data.id,...menuData}]);
-    }
-    setSaving(false);setShow(false);};
+    try{
+      if(eid){
+        const{error}=await supabase.from("menus").upsert({id:eid,...row});
+        if(error){showAlert("Gagal edit: "+error.message,"error");return;}
+        const menuData={name:row.name,price:row.price,category:row.category,available:row.available,mitraId:form.mitraId||null,hargaMitra:form.mitraId&&form.hargaMitra?parseInt(form.hargaMitra):null,suhu:row.suhu};
+        setMenus(p=>p.map(m=>m.id===eid?{...m,...menuData}:m));
+      }else{
+        const{data,error}=await supabase.from("menus").insert(row).select().single();
+        if(error){showAlert("Gagal simpan: "+error.message,"error");return;}
+        const menuData={name:data.name,price:data.price,category:data.category,available:data.available,mitraId:data.mitra_id||null,hargaMitra:data.harga_mitra||null,suhu:data.suhu||null};
+        setMenus(p=>[...p,{id:data.id,...menuData}]);
+      }
+      setShow(false);
+    }catch(err){
+      showAlert("Terjadi kesalahan: "+err.message,"error");
+    }finally{
+      setSaving(false);
+    }};
   const filtered=menus.filter(m=>cat==="Semua"||m.category===cat);
   const getMitra=(id)=>mitras.find(m=>m.id===id);
   return(<div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
