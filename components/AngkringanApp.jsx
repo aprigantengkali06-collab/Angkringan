@@ -2424,9 +2424,9 @@ const POS = memo(({menus,orders,setOrders,user,businessDate,currentSessionId,kas
   const [bayarModal,setBayarModal]=useState(false);
   const [uangDibayar,setUangDibayar]=useState("");
   const [successState,setSuccessState]=useState(null);
-  const kembalian=uangDibayar&&parseInt(uangDibayar)>=total?parseInt(uangDibayar)-total:null;
+  const kembalian=uangDibayar&&parseInt(uangDibayar)>total?parseInt(uangDibayar)-total:null;
   const submit=now=>{
-    if(now){setBayarModal(true);return;}
+    if(now){setUangDibayar(String(total));setBayarModal(true);return;}
     const newOrder=normalizeOrder({id:genId("ORD"),customerName:name,status:"open",
       sessionDate:businessDate,sessionId:currentSessionId||null,createdAt:localISO(),paidAt:null,items:cart,total,kasirId:user.id,lastDeviceId:user.id});
     setOrders(p=>[...p,newOrder]);
@@ -3067,8 +3067,8 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
     setSuccessState({type:"lunas",kembalian:kemb,order:updatedOrder,mode:"lunas"});
   };
 
-  const kembalianItem=uangItem&&bayarItem&&parseInt(uangItem)>=bayarItem.subtotal?parseInt(uangItem)-bayarItem.subtotal:null;
-  const kembalianLunas=uangLunas&&ord&&parseInt(uangLunas)>=ord.total?parseInt(uangLunas)-ord.total:null;
+  const kembalianItem=uangItem&&bayarItem&&parseInt(uangItem)>bayarItem.subtotal?parseInt(uangItem)-bayarItem.subtotal:null;
+  const kembalianLunas=uangLunas&&ord&&parseInt(uangLunas)>ord.total?parseInt(uangLunas)-ord.total:null;
 
   if(successState)return <SuccessOverlay
     type={successState.type}
@@ -3143,7 +3143,7 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
                     style={{width:30,height:30,borderRadius:8,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,fontSize:18,fontWeight:700,color:"var(--red)"}}>
                     −
                   </button>
-                  <button onClick={()=>{setBayarItem({...item,subtotal,lineKey});setUangItem("");}}
+                  <button onClick={()=>{setBayarItem({...item,subtotal,lineKey});setUangItem(String(subtotal));}}
                     style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
                     Bayar
                   </button>
@@ -3164,7 +3164,7 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
             <Btn v="dark" onClick={()=>setAdding(true)} full sm>+ Tambah</Btn>
             <ReceiptPrintButton onClick={()=>printStruk(ord,0,kasirs,receiptSettings,"nanti")} loadingLabel="Menyiapkan struk..." doneLabel="✓ Struk siap" style={{flex:1,padding:"10px 12px",borderRadius:16,background:"rgba(255,255,255,0.78)",color:"var(--text)",border:"1px solid var(--border)",boxShadow:"0 8px 18px rgba(15,23,42,0.04)",fontWeight:700,fontSize:13,minHeight:44}}>🧾 Struk</ReceiptPrintButton>
           </div>
-          <Btn v="success" onClick={()=>{setUangLunas("");setLunasModal(true);}} full>
+          <Btn v="success" onClick={()=>{setUangLunas(String(ord.total));setLunasModal(true);}} full>
             ✓ Konfirmasi Lunas — {rupiah(ord.total)}
           </Btn>
         </div>
