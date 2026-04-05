@@ -42,7 +42,7 @@ const FontStyle = memo(() => (
     .menu-card{height:100%;display:flex;flex-direction:column;justify-content:space-between;gap:8px;padding:12px 11px;border-radius:14px;background:var(--card);border:1.5px solid var(--border);box-shadow:0 2px 8px rgba(15,23,42,0.05)}
     .menu-card.active{background:rgba(245,166,35,0.06);border-color:rgba(245,166,35,0.35)}
     .menu-card-head{display:flex;flex-direction:column;gap:6px;min-height:84px}
-    .menu-card-title{color:var(--text);font-weight:700;font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
+    .menu-card-title{color:var(--text);font-weight:700;font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px;text-transform:uppercase}
     .menu-card-price-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
     .menu-card-action{width:100%;padding:8px 10px;border-radius:10px;margin-top:4px;font-size:12px;font-weight:700;border:1.5px solid rgba(245,158,11,0.2);background:var(--amber-dim);color:var(--amber)}
     .menu-card-action.active{background:var(--amber);color:#fff;border-color:rgba(245,158,11,0.5)}
@@ -3627,7 +3627,7 @@ const MenuMgmt = memo(({menus,setMenus,mitras,onClose}) => {
     else{setEid(null);setForm({name:"",price:"",category:allCats[0]||"Kopi",available:true,mitraId:null,hargaMitra:"",suhu:"Tidak Ada"});}setShow(true);};
   const save=async()=>{if(!form.name||!form.price)return;
     setSaving(true);
-    const row={name:form.name,price:parseInt(form.price),category:form.category,available:form.available,mitra_id:form.mitraId||null,harga_mitra:form.mitraId&&form.hargaMitra?parseInt(form.hargaMitra):null,suhu:form.mitraId?null:form.suhu};
+    const row={name:form.name.trim().toUpperCase(),price:parseInt(form.price),category:form.category,available:form.available,mitra_id:form.mitraId||null,harga_mitra:form.mitraId&&form.hargaMitra?parseInt(form.hargaMitra):null,suhu:form.mitraId?null:form.suhu};
     if(eid){
       const{error}=await supabase.from("menus").upsert({id:eid,...row});
       if(error){showAlert("Gagal edit: "+error.message,"error");setSaving(false);return;}
@@ -3706,7 +3706,7 @@ const MenuMgmt = memo(({menus,setMenus,mitras,onClose}) => {
           padding:"11px 13px",display:"flex",justifyContent:"space-between",alignItems:"center",opacity:m.available?1:0.5}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
-              <p style={{color:"var(--text)",fontWeight:600,fontSize:14}}>{m.name}</p>
+              <p style={{color:"var(--text)",fontWeight:600,fontSize:14,textTransform:"uppercase"}}>{m.name}</p>
               {!m.available&&<span style={{background:"rgba(122,106,86,0.15)",color:"var(--muted)",fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:99}}>Habis</span>}
             </div>
             <div style={{display:"flex",gap:7,marginTop:3,alignItems:"center",flexWrap:"wrap"}}>
