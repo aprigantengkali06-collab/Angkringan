@@ -105,6 +105,8 @@ const orderCreatedAt = order => {
   return raw;
 };
 const orderActualPaidAt = order => order?.paidAt || null;
+const getOrderNewestStamp = order => orderActualPaidAt(order) || orderCreatedAt(order) || order?.id || "";
+const compareOrdersNewestFirst = (a,b) => getOrderNewestStamp(b).localeCompare(getOrderNewestStamp(a));
 const hasCrossDatePayment = order => {
   const reportDate = orderSessionDate(order);
   const actualDate = paidAtDate(orderActualPaidAt(order));
@@ -749,8 +751,8 @@ const printOrderStrukRiwayat = async (order, kasirs, receiptSettings) => {
   const headerLines = splitReceiptLines(normalizedSettings.header);
   const footerLines = splitReceiptLines(normalizedSettings.footerPaid);
   const nativePrint = await tryNativeReceiptPrint(buildNativeReceiptPayload(order, 0, kasirs, normalizedSettings, "lunas", waktu));
-  if(nativePrint.printed) return;
-  if(nativePrint.nativeShell){ notifyNativePrintIssue(nativePrint.message); return; }
+  if(nativePrint.printed) return {ok:true, channel:"native"};
+  if(nativePrint.nativeShell){ notifyNativePrintIssue(nativePrint.message); return {ok:false, channel:"native", message:nativePrint.message}; }
   const html = `<!DOCTYPE html><html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -779,10 +781,34 @@ ${footerLines.map(line=>`<div class="foot">${escapeHtml(line)}</div>`).join("")}
 </body></html>`;
   if(typeof window!=="undefined"&&typeof window.__angkringanReceiptPreview==="function"){
     window.__angkringanReceiptPreview(html);
-    return;
+    return {ok:true, channel:"preview"};
   }
   const w=window.open("","_blank","width=340,height=600");
-  if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close();},400);}
+  if(!w) return {ok:false, channel:"browser", message:"Popup cetak diblokir browser."};
+  w.document.write(html);
+  w.document.close();
+  return await new Promise(resolve=>{
+    let settled = false;
+    const finish = payload => {
+      if(settled) return;
+      settled = true;
+      resolve(payload);
+    };
+    setTimeout(()=>{
+      try {
+        w.focus();
+        w.onafterprint = () => {
+          try{w.close();}catch{}
+          finish({ok:true, channel:"browser"});
+        };
+        w.print();
+        setTimeout(()=>finish({ok:true, channel:"browser", assumed:true}), 1200);
+      } catch (err) {
+        try{w.close();}catch{}
+        finish({ok:false, channel:"browser", message: err?.message || "Gagal membuka dialog print."});
+      }
+    }, 220);
+  });
 };
 
 // ── Struk Customer ──
@@ -794,8 +820,8 @@ const printStruk = async (order, kembalian, kasirs, receiptSettings, mode="lunas
   const headerLines = splitReceiptLines(normalizedSettings.header);
   const footerLines = splitReceiptLines(mode !== "nanti" ? normalizedSettings.footerPaid : normalizedSettings.footerOpen);
   const nativePrint = await tryNativeReceiptPrint(buildNativeReceiptPayload(order, kembalian, kasirs, normalizedSettings, mode, waktu));
-  if(nativePrint.printed) return;
-  if(nativePrint.nativeShell){ notifyNativePrintIssue(nativePrint.message); return; }
+  if(nativePrint.printed) return {ok:true, channel:"native"};
+  if(nativePrint.nativeShell){ notifyNativePrintIssue(nativePrint.message); return {ok:false, channel:"native", message:nativePrint.message}; }
   const isPaid = mode !== "nanti";
   const dibayar = (Number(order.total)||0)+(Number(kembalian)||0);
   const html = `<!DOCTYPE html><html><head>
@@ -829,10 +855,34 @@ ${footerLines.map(line=>`<div class="foot">${escapeHtml(line)}</div>`).join("")}
 </body></html>`;
   if(typeof window!=="undefined"&&typeof window.__angkringanReceiptPreview==="function"){
     window.__angkringanReceiptPreview(html);
-    return;
+    return {ok:true, channel:"preview"};
   }
   const w=window.open("","_blank","width=340,height=600");
-  if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close();},400);}
+  if(!w) return {ok:false, channel:"browser", message:"Popup cetak diblokir browser."};
+  w.document.write(html);
+  w.document.close();
+  return await new Promise(resolve=>{
+    let settled = false;
+    const finish = payload => {
+      if(settled) return;
+      settled = true;
+      resolve(payload);
+    };
+    setTimeout(()=>{
+      try {
+        w.focus();
+        w.onafterprint = () => {
+          try{w.close();}catch{}
+          finish({ok:true, channel:"browser"});
+        };
+        w.print();
+        setTimeout(()=>finish({ok:true, channel:"browser", assumed:true}), 1200);
+      } catch (err) {
+        try{w.close();}catch{}
+        finish({ok:false, channel:"browser", message: err?.message || "Gagal membuka dialog print."});
+      }
+    }, 220);
+  });
 };
 
 // ── UI Atoms ──
@@ -859,63 +909,146 @@ const CatBar = memo(({cats, active, onChange}) => (
   </div>
 ));
 
-const SuccessOverlay = ({message, onDone, onPrint, onBack, backLabel, kembalian, type}) => (
-  <div style={{
-    position:"fixed",inset:0,zIndex:9999,
-    display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-    background:"rgba(0,0,0,0.65)",backdropFilter:"blur(8px)",
-    animation:"fadeIn 0.2s ease both",
-    padding:"0 20px"
-  }}>
-    <div className="fu" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,width:"100%",maxWidth:340}}>
-      {/* Icon sukses */}
-      <div style={{animation:"popIn 0.3s ease both",display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
-        <div style={{width:72,height:72,borderRadius:99,background:"var(--green)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 32px rgba(16,185,129,0.35)"}}>
-          <svg width="36" height="36" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </div>
-        <span style={{color:"#fff",fontSize:20,fontWeight:800,letterSpacing:"-0.3px"}}>
-          {type==="nanti"?"Pesanan Dicatat!":type==="tambah"?"Item Ditambahkan!":message||"Pembayaran Lunas!"}
-        </span>
-        {type!=="nanti"&&type!=="tambah"&&kembalian!=null&&(
-          <div style={{background:"rgba(255,255,255,0.14)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:14,padding:"12px 24px",textAlign:"center"}}>
-            <p style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginBottom:4}}>Kembalian</p>
-            <p style={{color:"#fff",fontSize:28,fontWeight:800,letterSpacing:"-0.5px"}}>Rp {Number(kembalian).toLocaleString("id-ID")}</p>
+const SuccessOverlay = ({message, onDone, onPrint, onBack, backLabel, kembalian, type}) => {
+  const [printState,setPrintState] = useState("idle");
+  const printTimerRef = useRef(null);
+
+  useEffect(()=>()=>{
+    if(printTimerRef.current) window.clearTimeout(printTimerRef.current);
+  },[]);
+
+  const handlePrint = useCallback(async ()=>{
+    if(!onPrint || printState === "loading") return;
+    if(printTimerRef.current) window.clearTimeout(printTimerRef.current);
+    setPrintState("loading");
+    try{
+      const result = await Promise.resolve(onPrint());
+      if(result?.ok === false){
+        setPrintState("idle");
+        return;
+      }
+      setPrintState("done");
+      printTimerRef.current = window.setTimeout(()=>setPrintState("idle"), 1600);
+    }catch(err){
+      console.warn("Receipt print failed", err);
+      setPrintState("idle");
+    }
+  },[onPrint, printState]);
+
+  const printLabel = printState === "loading"
+    ? "Menyiapkan cetak..."
+    : printState === "done"
+      ? "✓ Perintah cetak dikirim"
+      : "🧾 Cetak Struk";
+
+  return (
+    <div style={{
+      position:"fixed",inset:0,zIndex:9999,
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      background:"rgba(0,0,0,0.65)",backdropFilter:"blur(8px)",
+      animation:"fadeIn 0.2s ease both",
+      padding:"0 20px"
+    }}>
+      <div className="fu" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,width:"100%",maxWidth:340}}>
+        <div style={{animation:"popIn 0.3s ease both",display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+          <div style={{width:72,height:72,borderRadius:99,background:"var(--green)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 32px rgba(16,185,129,0.35)"}}>
+            <svg width="36" height="36" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
-        )}
-      </div>
-      {/* Tombol aksi */}
-      <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%"}}>
-        {onPrint&&(
-          <button onClick={onPrint} style={{
-            width:"100%",padding:"14px",borderRadius:14,border:"none",
-            background:"linear-gradient(135deg,#fff 0%,#F0FDF4 100%)",
-            color:"var(--green)",fontWeight:800,fontSize:15,
-            display:"flex",alignItems:"center",justifyContent:"center",gap:9,
-            boxShadow:"0 8px 20px rgba(0,0,0,0.18)",cursor:"pointer"
+          <span style={{color:"#fff",fontSize:20,fontWeight:800,letterSpacing:"-0.3px"}}>
+            {type==="nanti"?"Pesanan Dicatat!":type==="tambah"?"Item Ditambahkan!":message||"Pembayaran Lunas!"}
+          </span>
+          {type!=="nanti"&&type!=="tambah"&&kembalian!=null&&(
+            <div style={{background:"rgba(255,255,255,0.14)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:14,padding:"12px 24px",textAlign:"center"}}>
+              <p style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginBottom:4}}>Kembalian</p>
+              <p style={{color:"#fff",fontSize:28,fontWeight:800,letterSpacing:"-0.5px"}}>Rp {Number(kembalian).toLocaleString("id-ID")}</p>
+            </div>
+          )}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%"}}>
+          {onPrint&&(
+            <button onClick={handlePrint} disabled={printState === "loading"} style={{
+              width:"100%",padding:"14px",borderRadius:14,border:"none",
+              background:printState === "done" ? "linear-gradient(135deg,#ECFDF5 0%,#DCFCE7 100%)" : "linear-gradient(135deg,#fff 0%,#F0FDF4 100%)",
+              color:"var(--green)",fontWeight:800,fontSize:15,
+              display:"flex",alignItems:"center",justifyContent:"center",gap:9,
+              boxShadow:"0 8px 20px rgba(0,0,0,0.18)",cursor:printState === "loading" ? "wait" : "pointer",
+              opacity:printState === "loading" ? 0.88 : 1
+            }}>
+              {printState === "done" ? (
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+              ) : (
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 9V2h12v7 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z"/>
+                </svg>
+              )}
+              {printLabel}
+            </button>
+          )}
+          <button onClick={onBack||onDone} style={{
+            width:"100%",padding:"13px",borderRadius:14,
+            border:"1px solid rgba(255,255,255,0.28)",
+            background:"rgba(255,255,255,0.14)",
+            color:"#fff",fontWeight:700,fontSize:14,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+            cursor:"pointer"
           }}>
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 9V2h12v7 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z"/>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5 M12 19l-7-7 7-7"/>
             </svg>
-            🧾 Cetak Struk
+            {backLabel||"Kembali"}
           </button>
-        )}
-        <button onClick={onBack||onDone} style={{
-          width:"100%",padding:"13px",borderRadius:14,
-          border:"1px solid rgba(255,255,255,0.28)",
-          background:"rgba(255,255,255,0.14)",
-          color:"#fff",fontWeight:700,fontSize:14,
-          display:"flex",alignItems:"center",justifyContent:"center",gap:8,
-          cursor:"pointer"
-        }}>
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5 M12 19l-7-7 7-7"/>
-          </svg>
-          {backLabel||"Kembali"}
-        </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
+
+const ReceiptPrintButton = memo(({onClick, children="🧾 Cetak Struk", loadingLabel="Menyiapkan cetak...", doneLabel="✓ Terkirim ke printer", style={}, disabled=false}) => {
+  const [state,setState] = useState("idle");
+  const timerRef = useRef(null);
+
+  useEffect(()=>()=>{
+    if(timerRef.current) window.clearTimeout(timerRef.current);
+  },[]);
+
+  const handleClick = useCallback(async e=>{
+    e?.stopPropagation?.();
+    if(disabled || state === "loading") return;
+    if(timerRef.current) window.clearTimeout(timerRef.current);
+    setState("loading");
+    try{
+      const result = await Promise.resolve(onClick?.(e));
+      if(result?.ok === false){
+        setState("idle");
+        return;
+      }
+      setState("done");
+      timerRef.current = window.setTimeout(()=>setState("idle"), 1600);
+    }catch(err){
+      console.warn("Receipt print failed", err);
+      setState("idle");
+    }
+  },[disabled, onClick, state]);
+
+  const label = state === "loading" ? loadingLabel : state === "done" ? doneLabel : children;
+
+  return (
+    <button onClick={handleClick} disabled={disabled || state === "loading"} style={{
+      display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,
+      cursor:disabled ? "not-allowed" : (state === "loading" ? "wait" : "pointer"),
+      opacity:disabled ? 0.6 : 1,
+      transition:"all .16s ease",
+      ...style
+    }}>
+      {state === "done" ? (
+        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+      ) : (
+        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z"/></svg>
+      )}
+      <span>{label}</span>
+    </button>
+  );
+});
 
 const KasirChip = memo(({kasirId, kasirs}) => {
   const k = (kasirs||[]).find(k=>k.id===kasirId);
@@ -1253,17 +1386,16 @@ const DayDetail = ({date, orders, expenses, setExpenses, kasirs, menus, onBack, 
                         <div style={{background:"var(--card2)",padding:"8px 13px",display:"flex",
                           alignItems:"center",justifyContent:"space-between"}}>
                           <KasirChip kasirId={o.kasirId} kasirs={kasirs}/>
-                          <button
-                            onClick={e=>{e.stopPropagation();printOrderStrukRiwayat(o, kasirs, receiptSettings);}}
-                            style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,marginLeft:"auto",
+                          <ReceiptPrintButton
+                            onClick={()=>printOrderStrukRiwayat(o, kasirs, receiptSettings)}
+                            loadingLabel="Mencetak..."
+                            doneLabel="✓ Tercetak"
+                            style={{padding:"6px 12px",borderRadius:8,marginLeft:"auto",
                               background:"var(--blue-dim)",border:"1px solid rgba(37,99,235,0.2)",
-                              color:"var(--blue)",fontWeight:700,fontSize:11,cursor:"pointer",flexShrink:0}}
+                              color:"var(--blue)",fontWeight:700,fontSize:11,flexShrink:0}}
                           >
-                            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M6 9V2h12v7 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z"/>
-                            </svg>
                             Struk
-                          </button>
+                          </ReceiptPrintButton>
                         </div>
                       </div>
                     )}
@@ -2311,7 +2443,7 @@ const POS = memo(({menus,orders,setOrders,user,businessDate,currentSessionId,kas
   };
 
   // Histori transaksi hari ini
-  const todayOrders=orders.filter(o=>orderSessionDate(o)===businessDate).sort((a,b)=>b.id.localeCompare(a.id));
+  const todayOrders=[...orders.filter(o=>orderSessionDate(o)===businessDate)].sort(compareOrdersNewestFirst);
   const todayPaid=todayOrders.filter(o=>o.status==="paid");
   const todayOpen=todayOrders.filter(o=>o.status==="open");
 
@@ -2383,11 +2515,7 @@ const POS = memo(({menus,orders,setOrders,user,businessDate,currentSessionId,kas
         {todayPaid.length===0?(
           <Card style={{textAlign:"center",padding:16}}><p style={{color:"var(--muted)",fontSize:13}}>Belum ada transaksi untuk sesi ini</p></Card>
         ):(
-          [...todayPaid].sort((a,b)=>{
-            const ta=orderActualPaidAt(a)||orderCreatedAt(a)||a.id||"";
-            const tb=orderActualPaidAt(b)||orderCreatedAt(b)||b.id||"";
-            return tb.localeCompare(ta);
-          })
+          [...todayPaid].sort(compareOrdersNewestFirst)
           .map((o,i)=>(
             <div key={o.id} onClick={()=>setDetailOrder(o)} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:13,padding:"13px 15px",marginBottom:9,cursor:"pointer",boxShadow:"0 2px 8px rgba(15,23,42,0.05)"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -2709,8 +2837,8 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
 
   const getLineKey = item => item?.cartKey || buildItemKey(item);
   const getItemsTotal = items => items.reduce((s,i)=>s+(Number(i.price)||0)*(Number(i.qty)||0),0);
-  const openOrders=useMemo(()=>orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)===businessDate),[orders,businessDate]);
-  const carryOverOrders=useMemo(()=>orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)!==businessDate),[orders,businessDate]);
+  const openOrders=useMemo(()=>[...orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)===businessDate)].sort(compareOrdersNewestFirst),[orders,businessDate]);
+  const carryOverOrders=useMemo(()=>[...orders.filter(o=>o.status==="open"&&o.total>0&&orderSessionDate(o)!==businessDate)].sort(compareOrdersNewestFirst),[orders,businessDate]);
   const ord=useMemo(()=>orders.find(o=>o.id===sel),[orders,sel]);
   const getSheetVariants = menu => {
     if(!menu || menu.mitraId || !menu.suhu || menu.suhu==="Tidak Ada") return [];
@@ -3034,7 +3162,7 @@ const Tagihan = memo(({orders,setOrders,menus,user,kasirs,businessDate,currentSe
         <div style={{padding:"12px 16px 16px",display:"flex",flexDirection:"column",gap:9}}>
           <div style={{display:"flex",gap:9}}>
             <Btn v="dark" onClick={()=>setAdding(true)} full sm>+ Tambah</Btn>
-            <Btn v="ghost" onClick={()=>printStruk(ord,0,kasirs,receiptSettings,"nanti")} full sm>🧾 Struk</Btn>
+            <ReceiptPrintButton onClick={()=>printStruk(ord,0,kasirs,receiptSettings,"nanti")} loadingLabel="Menyiapkan struk..." doneLabel="✓ Struk siap" style={{flex:1,padding:"10px 12px",borderRadius:16,background:"rgba(255,255,255,0.78)",color:"var(--text)",border:"1px solid var(--border)",boxShadow:"0 8px 18px rgba(15,23,42,0.04)",fontWeight:700,fontSize:13,minHeight:44}}>🧾 Struk</ReceiptPrintButton>
           </div>
           <Btn v="success" onClick={()=>{setUangLunas("");setLunasModal(true);}} full>
             ✓ Konfirmasi Lunas — {rupiah(ord.total)}
@@ -5014,11 +5142,13 @@ export default function AngkringanApp() {
                 </div>
               </div>
               <div style={{padding:"12px 20px calc(env(safe-area-inset-bottom) + 16px)",borderTop:"1px solid var(--border)",display:"flex",gap:10,flexShrink:0}}>
-                <button onClick={()=>printStruk(detailOrder,0,kasirs,receiptSettings,"lunas")}
+                <ReceiptPrintButton onClick={()=>printStruk(detailOrder,0,kasirs,receiptSettings,"lunas")}
+                  loadingLabel="Menyiapkan cetak..."
+                  doneLabel="✓ Perintah cetak dikirim"
                   style={{flex:1,padding:"13px",borderRadius:13,border:"none",background:"linear-gradient(135deg,#F59E0B,#F97316)",
-                  color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 4px 16px rgba(245,158,11,0.28)"}}>
+                  color:"#fff",fontWeight:700,fontSize:14,boxShadow:"0 4px 16px rgba(245,158,11,0.28)"}}>
                   🧾 Cetak Struk
-                </button>
+                </ReceiptPrintButton>
                 <button onClick={()=>setDetailOrder(null)}
                   style={{flex:1,padding:"13px",borderRadius:13,border:"1px solid var(--border)",background:"var(--card2)",
                   color:"var(--muted)",fontWeight:600,fontSize:14,cursor:"pointer"}}>
