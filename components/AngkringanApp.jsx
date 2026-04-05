@@ -1984,7 +1984,7 @@ const Dashboard = memo(({orders,expenses,setExpenses,user,setScreen,target,setTa
             boxShadow:"0 4px 16px rgba(239,68,68,0.08)"}}>
             <p style={{color:"var(--red)",fontWeight:700,fontSize:13,marginBottom:2}}>Catat Pengeluaran</p>
             <TxtInput label="Keterangan" value={expDesc} onChange={setExpDesc} placeholder="Beli es batu, gula, kopi..."/>
-            <TxtInput label="Jumlah" type="number" value={expAmt} onChange={setExpAmt} placeholder="50000" prefix="Rp"/>
+            <TxtInput label="Jumlah" moneyFormat value={expAmt} onChange={setExpAmt} placeholder="50.000" prefix="Rp"/>
             {expOk&&(
               <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,
                 background:"var(--green-dim)",borderRadius:8,padding:"8px"}}>
@@ -4829,41 +4829,44 @@ export default function AngkringanApp() {
 
   useEffect(()=>{
     if(!syncReady) return;
-    localStorage.setItem("kasirs",JSON.stringify(kasirs));
+    const lsTimer = setTimeout(()=>{ try{ localStorage.setItem("kasirs",JSON.stringify(kasirs)); }catch{} }, 300);
     scheduleSyncTask("kasirs", ()=>syncCollectionState({
       key:"kasirs",
       table:"kasirs",
       rows:kasirs.map(k=>({id:k.id,name:k.name,password:k.password})),
       serialize:serializeSimpleRow,
     }), 250);
+    return ()=>clearTimeout(lsTimer);
   },[kasirs, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
     if(!syncReady) return;
-    localStorage.setItem("mitras",JSON.stringify(mitras));
+    const lsTimer = setTimeout(()=>{ try{ localStorage.setItem("mitras",JSON.stringify(mitras)); }catch{} }, 300);
     scheduleSyncTask("mitras", ()=>syncCollectionState({
       key:"mitras",
       table:"mitras",
       rows:mitras.map(m=>({id:m.id,name:m.name,pemilik:m.pemilik})),
       serialize:serializeSimpleRow,
     }), 250);
+    return ()=>clearTimeout(lsTimer);
   },[mitras, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
     if(!syncReady) return;
-    localStorage.setItem("menus",JSON.stringify(menus));
+    const lsTimer = setTimeout(()=>{ try{ localStorage.setItem("menus",JSON.stringify(menus)); }catch{} }, 300);
     scheduleSyncTask("menus", ()=>syncCollectionState({
       key:"menus",
       table:"menus",
       rows:menus.map(m=>({id:m.id,name:m.name,price:m.price,category:m.category,available:m.available,mitra_id:m.mitraId||null,harga_mitra:m.hargaMitra||null,suhu:m.suhu||null})),
       serialize:serializeSimpleRow,
     }), 250);
+    return ()=>clearTimeout(lsTimer);
   },[menus, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
     if(!syncReady) return;
     const normalizedOrders = orders.map(order=>normalizeOrder({...order, sessionId:order.sessionId || currentSessionId || null}));
-    localStorage.setItem("orders",JSON.stringify(normalizedOrders));
+    const lsTimer = setTimeout(()=>{ try{ localStorage.setItem("orders",JSON.stringify(normalizedOrders)); }catch{} }, 300);
     scheduleSyncTask("orders", ()=>syncCollectionState({
       key:"orders",
       table:"orders",
@@ -4874,17 +4877,19 @@ export default function AngkringanApp() {
       serialize:row=>row.__syncSignature,
       mapForUpsert:({__syncSignature, ...dbRow})=>dbRow,
     }), ORDER_SYNC_DELAY_MS);
+    return ()=>clearTimeout(lsTimer);
   },[orders, currentSessionId, deviceId, scheduleSyncTask, syncCollectionState]);
 
   useEffect(()=>{
     if(!syncReady) return;
-    localStorage.setItem("expenses",JSON.stringify(expenses));
+    const lsTimer = setTimeout(()=>{ try{ localStorage.setItem("expenses",JSON.stringify(expenses)); }catch{} }, 300);
     scheduleSyncTask("expenses", ()=>syncCollectionState({
       key:"expenses",
       table:"expenses",
       rows:expenses.map(e=>({id:e.id,description:e.description,amount:e.amount,date:e.date})),
       serialize:serializeSimpleRow,
     }), 250);
+    return ()=>clearTimeout(lsTimer);
   },[expenses, scheduleSyncTask, syncCollectionState]);
 
   if(!user)return(<><FontStyle/><div className="app-shell"><Login onLogin={u=>{setUser(u);setScreen("home");}} kasirs={kasirs} ownerPassword={ownerPassword}/></div></>);
