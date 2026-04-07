@@ -4151,7 +4151,10 @@ export default function AngkringanApp() {
           supabase.from("kasirs").select("id,name,password").order("name", {ascending:true}),
           supabase.from("mitras").select("id,name,pemilik").order("name", {ascending:true}),
           supabase.from("menus").select("id,name,price,category,available,mitra_id,harga_mitra,suhu").order("name", {ascending:true}),
-          supabase.from("orders").select("id,customer_name,status,created_at,session_date,session_id,paid_at,items,total,kasir_id,updated_at,last_device_id").order("updated_at", {ascending:false}),
+          // FIX: Tambah .limit(300) — tanpa ini, makin lama data makin banyak
+          // dan setiap loadFromSupabase() (dipanggil saat buka app, tab aktif,
+          // online event, dll) akan fetch semua orders sekaligus → freeze.
+          supabase.from("orders").select("id,customer_name,status,created_at,session_date,session_id,paid_at,items,total,kasir_id,updated_at,last_device_id").order("updated_at", {ascending:false}).limit(300),
           supabase.from("expenses").select("id,description,amount,date").order("date", {ascending:false}),
           supabase.from("settings").select("key,value"),
         ]);
