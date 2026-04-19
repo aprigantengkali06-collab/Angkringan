@@ -49,7 +49,11 @@ const DashboardScreen = memo(({orders,expenses,setExpenses,user,setScreen,target
   },[sessionOpen, sessionDate]);
 
   const activeDashboardDate = sessionOpen ? sessionDate : selectedHistoryDate;
-  const financeDayMap = useMemo(()=>buildFinanceDayMap(orders, expenses, menus),[orders, expenses, menus]);
+  // FIX #7: Pisahkan paidOrders sebagai useMemo tersendiri.
+  // buildFinanceDayMap sekarang hanya recalculate saat ada pembayaran baru (status=paid),
+  // bukan setiap kali ada order open masuk — yang sangat sering terjadi saat ramai.
+  const paidOrders = useMemo(() => orders.filter(o => o.status === "paid"), [orders]);
+  const financeDayMap = useMemo(()=>buildFinanceDayMap(paidOrders, expenses, menus),[paidOrders, expenses, menus]);
   const daySummary = activeDashboardDate ? getFinanceSummaryForDate(financeDayMap, activeDashboardDate) : emptyFinanceSummary(activeDashboardDate);
   const paidToday = daySummary.paidOrders;
   const openOrders=activeDashboardDate?orders.filter(o=>o.status==="open"&&orderSessionDate(o)===activeDashboardDate):[];
@@ -80,17 +84,19 @@ const DashboardScreen = memo(({orders,expenses,setExpenses,user,setScreen,target
   const bersih = daySummary.kas;
   const topToday=getTopMenus(paidToday,5);
   const recentDates=useMemo(()=>Array.from({length:7},(_,i)=>{const d=getNow();d.setDate(d.getDate()-i);return fmt(d);}),[]);
+  // FIX: pakai paidOrders bukan orders — chartData tidak recalculate saat order open baru masuk
   const chartData=useMemo(()=>Array.from({length:7},(_,i)=>{
     const d=getNow();d.setDate(d.getDate()-(6-i));const ds=fmt(d);
-    return {day:d.toLocaleDateString("id-ID",{weekday:"short"}),total:orders.filter(o=>o.status==="paid"&&orderSessionDate(o)===ds).reduce((s,o)=>s+o.total,0),isToday:ds===activeDashboardDate};
-  }),[orders,activeDashboardDate]);
+    return {day:d.toLocaleDateString("id-ID",{weekday:"short"}),total:paidOrders.filter(o=>orderSessionDate(o)===ds).reduce((s,o)=>s+o.total,0),isToday:ds===activeDashboardDate};
+  }),[paidOrders,activeDashboardDate]);
 
   const saveExp=()=>{
     if(!expDesc||!expAmt)return;
     const entryDate=sessionOpen?businessDate:fmt(getNow());
     const newExp={id:genId("EXP"),description:expDesc,amount:parseInt(expAmt),date:entryDate};
     setExpenses(p=>[...p,newExp]);
-    supabase.from("expenses").upsert({id:newExp.id,description:newExp.description,amount:newExp.amount,date:newExp.date}).then();
+    supabase.from("expenses").upsert({id:newExp.id,description:newExp.description,amount:newExp.amount,date:newExp.date})
+      .then(({error})=>{ if(error) window.__angkringanAlert?.("Pengeluaran gagal tersimpan ke server. Coba lagi.","error"); });
     setExpDesc("");setExpAmt("");setExpOk(true);setTimeout(()=>setExpOk(false),1800);setShowExpForm(false);
     if(!sessionOpen) setSelectedHistoryDate(entryDate);
   };
