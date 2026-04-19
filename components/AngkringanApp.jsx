@@ -28,6 +28,7 @@ import Hdr from "./layout/Hdr.jsx";
 import MenuDrawer from "./overlays/MenuDrawer.jsx";
 import PrinterPickerOverlay from "./overlays/PrinterPickerOverlay.jsx";
 import LoginScreen from "./screens/LoginScreen.jsx";
+import ErrorBoundary from "./ErrorBoundary.jsx";
 import DashboardScreen from "./screens/DashboardScreen.jsx";
 import POSScreen from "./screens/POSScreen.jsx";
 import TagihanScreen from "./screens/TagihanScreen.jsx";
@@ -161,25 +162,36 @@ export default function AngkringanApp() {
     if (loadFromSupabaseInFlight.current && !force) return loadFromSupabaseInFlight.current;
     const requestPromise = (async () => {
       try {
-        const [kasirRes, mitraRes, menuRes, orderRes, expenseRes, settingsRes] = await Promise.all([
+        // FIX: Query dipisah — open orders tanpa limit (jangan sampai ada tagihan yang miss),
+        // paid orders dibatasi 200 terbaru untuk histori dashboard & chart.
+        // Digabung dan deduplicated sebelum diproses.
+        const [kasirRes, mitraRes, menuRes, openOrderRes, paidOrderRes, expenseRes, settingsRes] = await Promise.all([
           supabase.from("kasirs").select("id,name,password").order("name", { ascending: true }),
           supabase.from("mitras").select("id,name,pemilik").order("name", { ascending: true }),
           supabase.from("menus").select("id,name,price,category,available,mitra_id,harga_mitra,suhu").order("name", { ascending: true }),
-          supabase.from("orders").select("id,customer_name,status,created_at,session_date,session_id,paid_at,items,total,kasir_id,updated_at,last_device_id").order("updated_at", { ascending: false }).limit(300),
+          supabase.from("orders").select("id,customer_name,status,created_at,session_date,session_id,paid_at,items,total,kasir_id,updated_at,last_device_id").eq("status", "open"),
+          supabase.from("orders").select("id,customer_name,status,created_at,session_date,session_id,paid_at,items,total,kasir_id,updated_at,last_device_id").eq("status", "paid").order("updated_at", { ascending: false }).limit(200),
           supabase.from("expenses").select("id,description,amount,date").order("date", { ascending: false }),
           supabase.from("settings").select("key,value"),
         ]);
         if (kasirRes.error) throw kasirRes.error;
         if (mitraRes.error) throw mitraRes.error;
         if (menuRes.error) throw menuRes.error;
-        if (orderRes.error) throw orderRes.error;
+        if (openOrderRes.error) throw openOrderRes.error;
+        if (paidOrderRes.error) throw paidOrderRes.error;
         if (expenseRes.error) throw expenseRes.error;
         if (settingsRes.error) throw settingsRes.error;
         if (kasirRes.data) replaceCollectionIfChanged("kasirs", kasirRes.data.map(mapKasirRow), setKasirs);
         if (mitraRes.data) replaceCollectionIfChanged("mitras", mitraRes.data.map(mapMitraRow), setMitras);
         if (menuRes.data) replaceCollectionIfChanged("menus", menuRes.data.map(mapMenuRow), setMenus);
-        if (orderRes.data) {
-          const nextOrders = orderRes.data.map(mapOrderRow);
+        if (openOrderRes.data || paidOrderRes.data) {
+          // Gabung open + paid, deduplicate by id (open prioritas jika sama)
+          const seenIds = new Set();
+          const merged = [...(openOrderRes.data || []), ...(paidOrderRes.data || [])].filter(r => {
+            if (seenIds.has(r.id)) return false;
+            seenIds.add(r.id); return true;
+          });
+          const nextOrders = merged.map(mapOrderRow);
           const nextMap = replaceCollectionIfChanged("orders", nextOrders, setOrders, serializeOrderForSync);
           orderSnapshot.current = new Map(nextMap);
         }
@@ -631,16 +643,34 @@ export default function AngkringanApp() {
 
   useEffect(() => {
     if (!syncReady) return;
-    const normalizedOrders = orders.map(order => normalizeOrder({ ...order, sessionId: order.sessionId || currentSessionId || null }));
-    const t = setTimeout(() => { try { localStorage.setItem("orders", JSON.stringify(normalizedOrders)); } catch {} }, 300);
-    scheduleSyncTask("orders", () => syncCollectionState({
-      key: "orders", table: "orders",
-      rows: normalizedOrders.map(order => ({ ...toDbOrder(order, deviceId), __syncSignature: serializeOrderForSync(order) })),
-      serialize: row => row.__syncSignature,
-      mapForUpsert: ({ __syncSignature, ...dbRow }) => dbRow,
-    }), ORDER_SYNC_DELAY_MS);
+    // localStorage tetap debounced, normalize di sini sudah cukup ringan
+    const t = setTimeout(() => {
+      try {
+        const forStorage = orders.map(o => normalizeOrder({ ...o, sessionId: o.sessionId || currentSessionId || null }));
+        localStorage.setItem("orders", JSON.stringify(forStorage));
+      } catch {}
+    }, 300);
+    // FIX #5: Semua serialisasi berat (normalizeOrder + serializeOrderForSync + toDbOrder)
+    // dijalankan di dalam async task setelah debounce — tidak blokir main thread.
+    // toDbOrder hanya dipanggil untuk order yang benar-benar berubah (delta), bukan 300 sekaligus.
+    scheduleSyncTask("orders", async () => {
+      const normalizedOrders = orders.map(o => normalizeOrder({ ...o, sessionId: o.sessionId || currentSessionId || null }));
+      const prevMap = syncedRowsRef.current["orders"] || new Map();
+      const prevIds = syncedIdsRef.current["orders"] || new Set();
+      const nextMap = new Map(), nextIds = new Set(), changedOrders = [];
+      normalizedOrders.forEach(order => {
+        const id = String(order.id), sig = serializeOrderForSync(order);
+        nextMap.set(id, sig); nextIds.add(id);
+        if (prevMap.get(id) !== sig) changedOrders.push(order);
+      });
+      const deletedIds = [...prevIds].filter(id => !nextIds.has(id));
+      if (changedOrders.length) await upsertMany("orders", changedOrders.map(o => toDbOrder(o, deviceId)));
+      if (deletedIds.length) await deleteRowsByIds("orders", deletedIds);
+      syncedRowsRef.current["orders"] = nextMap;
+      syncedIdsRef.current["orders"] = nextIds;
+    }, ORDER_SYNC_DELAY_MS);
     return () => clearTimeout(t);
-  }, [orders, currentSessionId, deviceId, scheduleSyncTask, syncCollectionState]);
+  }, [orders, currentSessionId, deviceId, scheduleSyncTask]);
 
   useEffect(() => {
     if (!syncReady) return;
@@ -688,7 +718,7 @@ export default function AngkringanApp() {
       {overlay === "tim" && <TimScreen kasirs={kasirs} setKasirs={setKasirs} mitras={mitras} setMitras={setMitras} ownerPassword={ownerPassword} setOwnerPassword={setOwnerPassword} onClose={() => setOverlay(null)} />}
       {overlay === "menu" && <MenuMgmtScreen menus={menus} setMenus={setMenus} mitras={mitras} onClose={() => setOverlay(null)} />}
       {overlay === "data" && <DataToolsScreen busy={dataBusy} onClose={() => !dataBusy && setOverlay(null)} onBackup={handleBackupDownload} onRestore={handleRestoreBackup} onReset={handleResetRingan} receiptSettings={receiptSettings} onSaveReceiptSettings={next => { setReceiptSettings(normalizeReceiptSettings(next)); showAlert("Teks struk berhasil disimpan.", "success"); }} printerStatus={printerStatus} printerBusy={printerBusy} onPrinterSelect={handlePrinterSelect} onPrinterRefresh={handlePrinterRefresh} onPrinterClear={handlePrinterClear} />}
-      {overlay === "printer" && <PrinterPickerOverlay printerStatus={printerStatus} printerBusy={printerBusy} onSelect={handlePrinterSelect} onRefresh={handlePrinterRefresh} onClear={handlePrinterClear} onClose={() => setOverlay(null)} />}
+      {overlay === "printer" && <PrinterPickerOverlay printerStatus={printerStatus} printerBusy={printerBusy} onRefresh={handlePrinterRefresh} onClear={handlePrinterClear} onClose={() => setOverlay(null)} onPicked={async () => { await refreshPrinterStatus({ showBusy: true, busyLabel: "Menyambung printer..." }); showAlert("Printer berhasil dipilih!", "success"); }} />}
 
       {receiptPreviewModal && <ReceiptPreviewModal html={receiptPreviewModal.html} onClose={() => setReceiptPreviewModal(null)} />}
 
@@ -803,7 +833,9 @@ export default function AngkringanApp() {
             {/* Dashboard */}
             {screen === "home" && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                <DashboardScreen orders={orders} expenses={expenses} setExpenses={setExpenses} user={user} setScreen={setScreen} target={target} setTarget={setTarget} kasirs={kasirs} mitras={mitras} menus={menus} businessDate={businessDate} sessionOpen={sessionOpen} sessionDate={sessionDate} onBuka={handleBuka} onTutup={handleTutup} setDetailOrder={setDetailOrder} />
+                <ErrorBoundary label="Dashboard">
+                  <DashboardScreen orders={orders} expenses={expenses} setExpenses={setExpenses} user={user} setScreen={setScreen} target={target} setTarget={setTarget} kasirs={kasirs} mitras={mitras} menus={menus} businessDate={businessDate} sessionOpen={sessionOpen} sessionDate={sessionDate} onBuka={handleBuka} onTutup={handleTutup} setDetailOrder={setDetailOrder} />
+                </ErrorBoundary>
               </div>
             )}
 
@@ -811,7 +843,7 @@ export default function AngkringanApp() {
             {screen === "pos" && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                 {(user.role === "owner" || sessionOpen)
-                  ? <POSScreen menus={menus} orders={orders} setOrders={setOrders} user={user} businessDate={businessDate} currentSessionId={currentSessionId} kasirs={kasirs} setScreen={setScreen} posStep={posStep} setPosStep={setPosStep} posName={posName} setPosName={setPosName} posCart={posCart} setPosCart={setPosCart} receiptSettings={receiptSettings} setDetailOrder={setDetailOrder} loadFromSupabase={loadFromSupabase} />
+                  ? <ErrorBoundary label="Kasir"><POSScreen menus={menus} orders={orders} setOrders={setOrders} user={user} businessDate={businessDate} currentSessionId={currentSessionId} kasirs={kasirs} setScreen={setScreen} posStep={posStep} setPosStep={setPosStep} posName={posName} setPosName={setPosName} posCart={posCart} setPosCart={setPosCart} receiptSettings={receiptSettings} setDetailOrder={setDetailOrder} loadFromSupabase={loadFromSupabase} /></ErrorBoundary>
                   : <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 16 }}>
                       <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(239,68,68,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}><svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg></div>
                       <div style={{ textAlign: "center" }}><p style={{ color: "var(--text)", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Sesi Belum Dibuka</p><p style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>Buka sesi terlebih dahulu di halaman Home untuk mulai menerima pesanan.</p></div>
@@ -824,7 +856,7 @@ export default function AngkringanApp() {
             {screen === "tagihan" && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                 {(user.role === "owner" || sessionOpen)
-                  ? <TagihanScreen orders={orders} setOrders={setOrders} menus={menus} user={user} kasirs={kasirs} businessDate={businessDate} currentSessionId={currentSessionId} receiptSettings={receiptSettings} />
+                  ? <ErrorBoundary label="Tagihan"><TagihanScreen orders={orders} setOrders={setOrders} menus={menus} user={user} kasirs={kasirs} businessDate={businessDate} currentSessionId={currentSessionId} receiptSettings={receiptSettings} /></ErrorBoundary>
                   : <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 16 }}>
                       <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(239,68,68,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}><svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg></div>
                       <div style={{ textAlign: "center" }}><p style={{ color: "var(--text)", fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Sesi Belum Dibuka</p><p style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>Buka sesi terlebih dahulu di halaman Home untuk mengakses tagihan.</p></div>
