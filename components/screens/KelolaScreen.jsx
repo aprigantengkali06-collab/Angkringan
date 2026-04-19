@@ -186,7 +186,8 @@ export const MenuMgmtScreen = memo(({menus,setMenus,mitras,onClose}) => {
         const menuData={name:row.name,price:row.price,category:row.category,available:row.available,mitraId:form.mitraId||null,hargaMitra:form.mitraId&&form.hargaMitra?parseInt(form.hargaMitra):null,suhu:row.suhu};
         setMenus(p=>p.map(m=>m.id===eid?{...m,...menuData}:m));
       }else{
-        const{data,error}=await supabase.from("menus").insert(row).select().single();
+        const newMenuId=genId("MNU");
+        const{data,error}=await supabase.from("menus").insert({id:newMenuId,...row}).select().single();
         if(error){showAlert("Gagal simpan: "+error.message,"error");return;}
         const menuData={name:data.name,price:data.price,category:data.category,available:data.available,mitraId:data.mitra_id||null,hargaMitra:data.harga_mitra||null,suhu:data.suhu||null};
         setMenus(p=>[...p,{id:data.id,...menuData}]);
