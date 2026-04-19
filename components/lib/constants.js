@@ -19,9 +19,11 @@ export const DEFAULT_MENU_CATS = ["Kopi","Makanan"];
 export const PRINTER_STATUS_POLL_MS = 5000;
 // PERUBAHAN PERFORMA: 30000 → 120000 (2 menit) untuk kurangi polling fallback
 export const FALLBACK_REFRESH_MS = 120000;
-export const REMOTE_REFRESH_DELAY_MS = 80;
+// PERUBAHAN PERFORMA: 80 → 1500ms — cegah flood full-fetch saat banyak realtime event masuk bersamaan
+export const REMOTE_REFRESH_DELAY_MS = 1500;
 export const SETTINGS_SYNC_DELAY_MS = 400;
-export const ORDER_SYNC_DELAY_MS = 120;
+// PERUBAHAN PERFORMA: 120 → 400ms — kurangi write pressure saat burst input order cepat
+export const ORDER_SYNC_DELAY_MS = 400;
 
 export const KASIR_COLORS = ["var(--amber)","var(--blue)","var(--purple)","var(--green)"];
 export const KASIR_COLORS_DIM = ["var(--amber-dim)","var(--blue-dim)","var(--purple-dim)","var(--green-dim)"];
