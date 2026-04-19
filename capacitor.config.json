@@ -3,15 +3,26 @@
   "appName": "Angkringan.",
   "webDir": "out",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "cleartext": false
   },
   "android": {
-    "allowMixedContent": true,
-    "backgroundColor": "#FDF8F2"
+    "allowMixedContent": false,
+    "backgroundColor": "#FDF8F2",
+    "buildOptions": {
+      "keystorePath": null,
+      "keystorePassword": null,
+      "keystoreAlias": null,
+      "keystoreAliasPassword": null,
+      "releaseType": "APK"
+    }
   },
   "plugins": {
     "App": {
       "launchShowDuration": 0
+    },
+    "ThermalPrinter": {
+      "reconnectOnResume": true
     }
   }
 }
