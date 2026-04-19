@@ -62,7 +62,11 @@ export const TimScreen = ({kasirs,setKasirs,mitras,setMitras,ownerPassword,setOw
             <div style={{width:36,height:36,borderRadius:10,background:KASIR_COLORS_DIM[i%4],display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:KASIR_COLORS[i%4],fontWeight:800,fontSize:14}}>{k.name[0]}</span></div>
             <div><p style={{color:"var(--text)",fontWeight:700}}>{k.name}</p><p style={{color:"var(--muted)",fontSize:12,marginTop:1}}>Akses kasir aktif</p></div>
           </div>
-          {kasirs.length>1&&(<button onClick={()=>{supabase.from("kasirs").delete().eq("id",k.id).then();setKasirs(p=>p.filter(x=>x.id!==k.id));}} style={{width:32,height:32,borderRadius:8,background:"var(--red-dim)",border:"1px solid rgba(224,82,82,0.2)",color:"var(--red)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>)}
+          {kasirs.length>1&&(<button onClick={()=>{
+            setKasirs(p=>p.filter(x=>x.id!==k.id));
+            supabase.from("kasirs").delete().eq("id",k.id)
+              .then(({error})=>{ if(error){ setKasirs(p=>[...p,k]); window.__angkringanAlert?.("Gagal hapus kasir. Coba lagi.","error"); } });
+          }} style={{width:32,height:32,borderRadius:8,background:"var(--red-dim)",border:"1px solid rgba(224,82,82,0.2)",color:"var(--red)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>)}
         </Card>))}
         <Card style={{display:"flex",flexDirection:"column",gap:12}}>
           <h3 style={{color:"var(--text)",fontWeight:700,fontSize:15}}>Tambah Kasir</h3>
@@ -78,7 +82,11 @@ export const TimScreen = ({kasirs,setKasirs,mitras,setMitras,ownerPassword,setOw
             <div style={{width:36,height:36,borderRadius:10,background:MITRA_COLORS_DIM[i%4],display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:MITRA_COLORS[i%4],fontWeight:800,fontSize:14}}>{m.name[0]}</span></div>
             <div><p style={{color:"var(--text)",fontWeight:700}}>{m.name}</p>{m.pemilik&&<p style={{color:"var(--muted)",fontSize:12,marginTop:1}}>{m.pemilik}</p>}</div>
           </div>
-          <button onClick={()=>{supabase.from("mitras").delete().eq("id",m.id).then();setMitras(p=>p.filter(x=>x.id!==m.id));}} style={{width:32,height:32,borderRadius:8,background:"var(--red-dim)",border:"1px solid rgba(224,82,82,0.2)",color:"var(--red)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          <button onClick={()=>{
+            setMitras(p=>p.filter(x=>x.id!==m.id));
+            supabase.from("mitras").delete().eq("id",m.id)
+              .then(({error})=>{ if(error){ setMitras(p=>[...p,m]); window.__angkringanAlert?.("Gagal hapus mitra. Coba lagi.","error"); } });
+          }} style={{width:32,height:32,borderRadius:8,background:"var(--red-dim)",border:"1px solid rgba(224,82,82,0.2)",color:"var(--red)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
         </Card>))}
         <Card style={{display:"flex",flexDirection:"column",gap:12}}>
           <h3 style={{color:"var(--text)",fontWeight:700,fontSize:15}}>🤝 Tambah Mitra</h3>
@@ -137,8 +145,15 @@ export const MenuMgmtScreen = memo(({menus,setMenus,mitras,onClose}) => {
   const renameCategory=(oldName,newName)=>{
     const v=newName.trim();if(!v||v===oldName){setEditCat(null);return;}
     const updatedMenus=menus.map(m=>m.category===oldName?{...m,category:v}:m);
-    updatedMenus.filter(m=>m.category===v&&menus.find(om=>om.id===m.id)?.category===oldName).forEach(m=>supabase.from("menus").update({category:v}).eq("id",m.id).then());
     setMenus(updatedMenus);
+    const toUpdate=updatedMenus.filter(m=>m.category===v&&menus.find(om=>om.id===m.id)?.category===oldName);
+    if(toUpdate.length){
+      Promise.all(toUpdate.map(m=>supabase.from("menus").update({category:v}).eq("id",m.id)))
+        .then(results=>{
+          const failed=results.some(r=>r.error);
+          if(failed) window.__angkringanAlert?.("Sebagian menu gagal diupdate kategorinya. Coba lagi.","error");
+        });
+    }
     const nextExtra=extraCats.map(c=>c===oldName?v:c);setExtraCats(nextExtra);localStorage.setItem("extraMenuCats",JSON.stringify(nextExtra));
     if(form.category===oldName)setForm(p=>({...p,category:v}));
     if(cat===oldName)setCat(v);setEditCat(null);
@@ -205,7 +220,11 @@ export const MenuMgmtScreen = memo(({menus,setMenus,mitras,onClose}) => {
           <div style={{display:"flex",gap:6,flexShrink:0}}>
             {[{act:()=>setMenus(p=>p.map(x=>x.id===m.id?{...x,available:!x.available}:x)),bg:m.available?"var(--green-dim)":"var(--card2)",col:m.available?"var(--green)":"var(--muted)",icon:m.available?"M20 6L9 17l-5-5":"M18 6L6 18 M6 6l12 12"},
               {act:()=>open(m),bg:"var(--amber-dim)",col:"var(--amber)",icon:"M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"},
-              {act:()=>{supabase.from("menus").delete().eq("id",m.id).then();setMenus(p=>p.filter(x=>x.id!==m.id));},bg:"var(--red-dim)",col:"var(--red)",icon:"M3 6h18 M8 6V4h8v2 M19 6l-1 14"},
+              {act:()=>{
+                setMenus(p=>p.filter(x=>x.id!==m.id));
+                supabase.from("menus").delete().eq("id",m.id)
+                  .then(({error})=>{ if(error){ setMenus(p=>[...p,m]); window.__angkringanAlert?.("Gagal hapus menu. Coba lagi.","error"); } });
+              },bg:"var(--red-dim)",col:"var(--red)",icon:"M3 6h18 M8 6V4h8v2 M19 6l-1 14"},
             ].map((b,j)=>(<button key={j} onClick={b.act} style={{width:30,height:30,borderRadius:8,background:b.bg,border:`1px solid ${b.col}33`,color:b.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={b.icon}/></svg></button>))}
           </div>
         );
