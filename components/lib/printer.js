@@ -39,21 +39,25 @@ export const getNativePrinterBridge = () => {
   const capacitorPrinter = window.Capacitor?.Plugins?.ThermalPrinter;
   if (capacitorPrinter?.printReceipt) {
     return {
-      printReceipt: payload => capacitorPrinter.printReceipt({ payload }),
-      getPrinterInfo: () => capacitorPrinter.getPrinterInfo?.() || { ok:false },
-      getPrinterStatus: () => capacitorPrinter.getPrinterStatus?.() || { ok:false },
-      selectPrinter: () => capacitorPrinter.selectPrinter?.() || { ok:false },
-      clearPrinter: () => capacitorPrinter.clearPrinter?.() || { ok:false },
+      printReceipt:        payload    => capacitorPrinter.printReceipt({ payload }),
+      getPrinterInfo:      ()         => capacitorPrinter.getPrinterInfo?.()                        || { ok:false },
+      getPrinterStatus:    ()         => capacitorPrinter.getPrinterStatus?.()                      || { ok:false },
+      selectPrinter:       ()         => capacitorPrinter.selectPrinter?.()                        || { ok:false },
+      clearPrinter:        ()         => capacitorPrinter.clearPrinter?.()                         || { ok:false },
+      getPairedDevices:    ()         => capacitorPrinter.getPairedDevices?.()                     || { ok:false, devices:"[]" },
+      setPrinterByAddress: (addr, nm) => capacitorPrinter.setPrinterByAddress?.({ address:addr, name:nm }) || { ok:false },
     };
   }
   const androidBridge = window.AngkringanPrinterBridge;
   if (androidBridge?.printReceipt) {
     return {
-      printReceipt: async payload => parseBridgeJson(androidBridge.printReceipt(JSON.stringify(payload))),
-      getPrinterInfo: async () => parseBridgeJson(androidBridge.getPrinterInfo?.()),
-      getPrinterStatus: async () => parseBridgeJson(androidBridge.getPrinterStatus?.()),
-      selectPrinter: async () => parseBridgeJson(androidBridge.selectPrinter?.()),
-      clearPrinter: async () => parseBridgeJson(androidBridge.clearPrinter?.()),
+      printReceipt:        async payload    => parseBridgeJson(androidBridge.printReceipt(JSON.stringify(payload))),
+      getPrinterInfo:      async ()         => parseBridgeJson(androidBridge.getPrinterInfo?.()),
+      getPrinterStatus:    async ()         => parseBridgeJson(androidBridge.getPrinterStatus?.()),
+      selectPrinter:       async ()         => parseBridgeJson(androidBridge.selectPrinter?.()),
+      clearPrinter:        async ()         => parseBridgeJson(androidBridge.clearPrinter?.()),
+      getPairedDevices:    async ()         => parseBridgeJson(androidBridge.getPairedDevices?.()),
+      setPrinterByAddress: async (addr, nm) => parseBridgeJson(androidBridge.setPrinterByAddress?.(JSON.stringify({ address:addr, name:nm }))),
     };
   }
   return null;
