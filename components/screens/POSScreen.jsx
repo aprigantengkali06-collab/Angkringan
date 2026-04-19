@@ -35,7 +35,8 @@ const POSScreen = memo(({menus,orders,setOrders,user,businessDate,currentSession
 
   const total=cart.reduce((s,c)=>s+c.price*c.qty,0);
   const cartKey=(menuId,suhu,note="",price=0,nm="")=>buildItemKey({menuId,suhu,note,price,name:nm});
-  const totalQtyOf=menuId=>cart.filter(c=>c.menuId===menuId).reduce((s,c)=>s+c.qty,0);
+  // FIX #2: Pre-compute Map sekali per perubahan cart, bukan scan per-item setiap render
+  const qtyByMenuId=useMemo(()=>{const m=new Map();cart.forEach(c=>m.set(c.menuId,(m.get(c.menuId)||0)+c.qty));return m;},[cart]);
 
   const openSheet=(m)=>{
     const def=m.suhu==="Hot"?"Hot":"Ice";
@@ -72,10 +73,16 @@ const POSScreen = memo(({menus,orders,setOrders,user,businessDate,currentSession
   const chg=(key,d)=>setCart(p=>p.map(c=>c.cartKey===key?{...c,qty:c.qty+d}:c).filter(c=>c.qty>0));
   const reset=()=>{setStep("name");setName("");setCart([]);setCat("Semua");setSearch("");setShowSearch(false);setOpenSearch(false);setOpenQ("");};
 
+  // FIX #1: Memoize todayOrders, todayPaid, todayOpen — tidak recalculate setiap render
+  const todayOrders=useMemo(()=>[...orders.filter(o=>orderSessionDate(o)===businessDate)].sort(compareOrdersNewestFirst),[orders,businessDate]);
+  const todayPaid=useMemo(()=>todayOrders.filter(o=>o.status==="paid"),[todayOrders]);
+  const todayOpen=useMemo(()=>todayOrders.filter(o=>o.status==="open"),[todayOrders]);
+
+  // FIX #3: quickMenus pakai todayOrders (bukan semua 300 orders) — kurangi iterasi 10-20x
   const quickMenus=useMemo(()=>{
-    const freq={};orders.forEach(o=>o.items.forEach(i=>{freq[i.menuId]=(freq[i.menuId]||0)+i.qty;}));
+    const freq={};todayOrders.forEach(o=>o.items.forEach(i=>{freq[i.menuId]=(freq[i.menuId]||0)+i.qty;}));
     return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([id])=>menus.find(m=>String(m.id)===id)).filter(m=>m?.available);
-  },[orders,menus]);
+  },[todayOrders,menus]);
 
   const filtered=useMemo(()=>menus.filter(m=>{
     if(!m.available)return false;
@@ -103,10 +110,6 @@ const POSScreen = memo(({menus,orders,setOrders,user,businessDate,currentSession
     setBayarModal(false);setUangDibayar("");
     setSuccessState({type:"lunas",kembalian:kemb,order:newOrder,mode:"lunas"});
   };
-
-  const todayOrders=[...orders.filter(o=>orderSessionDate(o)===businessDate)].sort(compareOrdersNewestFirst);
-  const todayPaid=todayOrders.filter(o=>o.status==="paid");
-  const todayOpen=todayOrders.filter(o=>o.status==="open");
 
   if(successState)return <SuccessOverlay
     type={successState.type}
@@ -220,7 +223,7 @@ const POSScreen = memo(({menus,orders,setOrders,user,businessDate,currentSession
       {!showSearch&&quickMenus.length>0&&(<div style={{marginBottom:7}}>
         <p style={{color:"var(--muted)",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>⚡ Quick Order</p>
         <div style={{display:"flex",gap:7,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
-          {quickMenus.map(m=>{const q=totalQtyOf(m.id);return(<div key={m.id} onClick={()=>openSheet(m)} style={{flexShrink:0,background:q>0?"rgba(245,166,35,0.1)":"var(--card2)",border:`1px solid ${q>0?"rgba(245,166,35,0.3)":"var(--border)"}`,borderRadius:10,padding:"7px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+          {quickMenus.map(m=>{const q=qtyByMenuId.get(m.id)||0;return(<div key={m.id} onClick={()=>openSheet(m)} style={{flexShrink:0,background:q>0?"rgba(245,166,35,0.1)":"var(--card2)",border:`1px solid ${q>0?"rgba(245,166,35,0.3)":"var(--border)"}`,borderRadius:10,padding:"7px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
             {q>0&&<span style={{background:"var(--amber)",color:"#fff",borderRadius:"50%",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0}}>{q}</span>}
             <div><p style={{color:"var(--text)",fontWeight:600,fontSize:11,whiteSpace:"nowrap"}}>{m.name}</p><p style={{color:"var(--amber)",fontWeight:700,fontSize:10}}>{rupiah(m.price)}</p></div>
           </div>);})}
@@ -238,13 +241,13 @@ const POSScreen = memo(({menus,orders,setOrders,user,businessDate,currentSession
         </div>
       </div>}
     </div>
-    <div style={{flex:1,overflowY:"auto",padding:"8px 14px",alignContent:"start",paddingBottom:cart.length>0?"72px":"10px",...(layout==="grid"?{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,gridAutoRows:"1fr"}:{display:"flex",flexDirection:"column",gap:7})}}>
+    <div style={{flex:1,overflowY:"auto",padding:"8px 14px",alignContent:"start",paddingBottom:cart.length>0?"72px":"10px",willChange:"transform",...(layout==="grid"?{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,gridAutoRows:"1fr"}:{display:"flex",flexDirection:"column",gap:7})}}>
       {filtered.length===0&&(<div style={{gridColumn:"1/-1",textAlign:"center",padding:32}}><p style={{color:"var(--muted)",fontSize:13}}>{search?`Menu "${search}" tidak ditemukan`:"Belum ada menu yang tampil di kategori ini"}</p></div>)}
       {filtered.map(m=>{
-        const q=totalQtyOf(m.id);
+        const q=qtyByMenuId.get(m.id)||0;
         const hasSuhu=!m.mitraId&&m.suhu&&m.suhu!=="Tidak Ada";
         if(layout==="list")return(
-          <div key={m.id} onClick={()=>openSheet(m)} style={{background:q>0?"rgba(245,166,35,0.06)":"var(--card)",border:`1.5px solid ${q>0?"rgba(245,166,35,0.35)":"var(--border)"}`,borderRadius:12,padding:"10px 13px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",boxShadow:"0 2px 8px rgba(15,23,42,0.04)"}}>
+          <div key={m.id} onClick={()=>openSheet(m)} style={{background:q>0?"rgba(245,166,35,0.06)":"var(--card)",border:`1.5px solid ${q>0?"rgba(245,166,35,0.35)":"var(--border)"}`,borderRadius:12,padding:"10px 13px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",boxShadow:"0 2px 8px rgba(15,23,42,0.04)",contentVisibility:"auto",containIntrinsicSize:"0 62px"}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                 <p style={{color:"var(--text)",fontWeight:700,fontSize:13}}>{m.name}</p>
